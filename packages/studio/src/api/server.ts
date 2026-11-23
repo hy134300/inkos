@@ -3,6 +3,7 @@ import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { streamSSE } from "hono/streaming";
 import { serve } from "@hono/node-server";
+import { llmLiveBroker } from "./llm-live.js";
 import { gzipSync } from "node:zlib";
 import { randomUUID } from "node:crypto";
 import { recoverSessionAfterAgentFailure, workSessionResponseMetadata } from "./work-session.js";
@@ -2472,6 +2473,7 @@ async function probeServiceCapabilities(args: {
 // --- Server factory ---
 
 export function createStudioServer(initialConfig: ProjectConfig, root: string, overrides: { readonly nodeImageGenerator?: NodeImageDeps; readonly hostname?: string; readonly allowedOrigins?: readonly string[] } = {}) {
+  llmLiveBroker.start();
   const app = new Hono();
   const state = new StateManager(root);
   const recoveryStore = new CreativeEpisodeStore(join(root, ".inkos", "harness.sqlite"));
@@ -3417,6 +3419,28 @@ export function createStudioServer(initialConfig: ProjectConfig, root: string, o
       });
 
       // Block until aborted
+      await new Promise(() => {});
+    });
+  });
+
+  // AI Live: read-only mirror of model calls (separate from domain events) so
+  // the frontend can show every request/response without polluting business SSE.
+  app.get("/api/v1/llm-live/stream", (c) => {
+    return streamSSE(c, async (stream) => {
+      const unsubscribe = llmLiveBroker.subscribe((frame) => {
+        void stream.writeSSE({ event: "llm_live", data: JSON.stringify(frame) });
+      });
+      await stream.writeSSE({
+        event: "llm_live",
+        data: JSON.stringify(llmLiveBroker.snapshotFrame()),
+      });
+      const keepAlive = setInterval(() => {
+        void stream.writeSSE({ event: "llm_live", data: JSON.stringify({ type: "ping" }) });
+      }, 15_000);
+      stream.onAbort(() => {
+        unsubscribe();
+        clearInterval(keepAlive);
+      });
       await new Promise(() => {});
     });
   });

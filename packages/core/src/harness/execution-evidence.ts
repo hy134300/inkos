@@ -3,6 +3,15 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 export type ExecutionEvidenceSink = (type: string, payload: Record<string, unknown>) => void;
 const storage = new AsyncLocalStorage<{sink: ExecutionEvidenceSink; profile?: WorkProfile; work?: WorkManifest | null; baselineWork?: WorkManifest | null; authorRequest?: string}>();
+
+// Global observers receive every evidence record regardless of which
+// withExecutionEvidence scope produced it. Used by the Studio "AI live" feed;
+// observers are isolated so a failing observer cannot break production.
+const globalObservers = new Set<ExecutionEvidenceSink>();
+export function registerExecutionEvidenceObserver(observer: ExecutionEvidenceSink): () => void {
+  globalObservers.add(observer);
+  return () => { globalObservers.delete(observer); };
+}
 export function withExecutionEvidence<T>(sink: ExecutionEvidenceSink, task: () => T, profile?: WorkProfile, work?: WorkManifest | null, authorRequest?: string, baselineWork?: WorkManifest | null): T {
   const parent = storage.getStore();
   const selectedWork = work === undefined ? parent?.work : work;
@@ -12,6 +21,10 @@ export function withExecutionEvidence<T>(sink: ExecutionEvidenceSink, task: () =
 }
 export function recordExecutionEvidence(type: string, payload: Record<string, unknown>): void {
   storage.getStore()?.sink(type, payload);
+  if (globalObservers.size === 0) return;
+  for (const observer of globalObservers) {
+    try { observer(type, payload); } catch { /* observers must never break production */ }
+  }
 }
 
 export function currentExecutionProfile(): WorkProfile | undefined { return storage.getStore()?.profile; }

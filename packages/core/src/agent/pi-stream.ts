@@ -205,6 +205,11 @@ function observeModelStream(model: Model<Api>, modelCallId: string | undefined, 
       let pendingStart: Parameters<typeof output.push>[0] | undefined;
       for await (const event of source) {
         if ("partial" in event) lastPartial = event.partial;
+        // Emit incremental text as evidence so Studio can mirror generation in
+        // real time (AI live feed). Tool calls and reasoning are not text deltas.
+        if (event.type === "text_delta" && event.delta) {
+          recordExecutionEvidence("model-output-delta", { modelCallId, delta: event.delta });
+        }
         if (event.type === "start") { pendingStart = event; continue; }
         if (event.type === "error" && retry && event.error.stopReason !== "aborted"
           && (event.error as AssistantMessage & {errorCode?: string}).errorCode === "MODEL_STREAM_INACTIVITY") {

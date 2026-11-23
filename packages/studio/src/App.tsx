@@ -33,6 +33,7 @@ import { setAppLanguage, tr } from "./lib/app-language";
 import { postApi, putApi, useApi } from "./hooks/use-api";
 import { Sun, Moon } from "lucide-react";
 import { House } from "lucide-react";
+import { LlmLivePanel } from "./components/LlmLivePanel";
 
 export type { HashRoute as Route } from "./hooks/use-hash-route";
 
@@ -196,6 +197,7 @@ export function App() {
           </div>
 
           <div className="flex items-center gap-3">
+            <LlmLivePanel />
             <div className="flex gap-0.5 bg-muted/50 rounded-lg p-0.5">
               <button
                 onClick={async () => {

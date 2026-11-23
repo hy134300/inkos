@@ -133,3 +133,9 @@ export { syncWorkSourceArtifacts, createInitialWorkManifestWrite } from "./sourc
 export { migrateLegacyWorks, type LegacyMigrationItem } from "./legacy-migration.js";
 
 export { createShortProductionStageTools } from "./tools/short-production.js";
+export {
+  withExecutionEvidence,
+  recordExecutionEvidence,
+  registerExecutionEvidenceObserver,
+  type ExecutionEvidenceSink,
+} from "./execution-evidence.js";
