@@ -67,20 +67,25 @@ export class FanficCanonImporter extends BaseAgent {
     sourceName: string,
     language: "zh" | "en",
   ): Promise<{ readonly text: string; readonly compiled: boolean }> {
-    // Budget for compiling chunks. Keep the original 16k reservation so small
-    // context windows still split sensibly; the iterative compression below
-    // additionally enforces the stricter final-consumer budget.
-    const budget = semanticInputBudget(this.ctx.client, { reservedOutputTokens: 16_384 });
+    // prepareWorkerMessages budgets every worker call at
+    //   window - defaults.maxTokens - 2048
+    // A chunk must fit THAT budget, not a hardcoded 16k reservation: with a
+    // large maxTokens (e.g. 24576) the 16k-reserved chunk (107520 tokens) is
+    // itself larger than the consumer budget (101376) and overflows before the
+    // compression loop ever runs.
+    const window = this.ctx.client._piModel?.contextWindow;
+    const maxOutput = this.ctx.client.defaults?.maxTokens;
+    const consumerBudget = window && Number.isFinite(window) && typeof maxOutput === "number"
+      ? Math.max(1, window - maxOutput - 2048)
+      : undefined;
+    // Leave room for the system/user wrapper around each chunk.
+    const budget = consumerBudget !== undefined
+      ? Math.max(1, consumerBudget - 4096)
+      : (semanticInputBudget(this.ctx.client, { reservedOutputTokens: 16_384 }) ?? undefined);
     if (budget === undefined || estimateTextTokens(sourceText) <= budget) {
       return { text: sourceText, compiled: false };
     }
-    // Budget of the final submitStructured call (prepareWorkerMessages uses
-    // window - defaults.maxTokens - 2048). The compiled package must fit here.
-    const window = this.ctx.client._piModel?.contextWindow;
-    const maxOutput = this.ctx.client.defaults?.maxTokens ?? 0;
-    const finalBudget = window && Number.isFinite(window)
-      ? Math.max(1, window - maxOutput - 2048 - 1024) // extra 1024 margin for skills/work metadata
-      : budget;
+    const finalBudget = budget;
 
     const header = language === "en"
       ? [`# ${sourceName} semantic source package`, "", "Compiled from every source chunk for traceable canon extraction.", ""]
