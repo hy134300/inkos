@@ -6105,12 +6105,13 @@ export function createStudioServer(initialConfig: ProjectConfig, root: string, o
     };
 
     broadcast("fanfic:start", { bookId, title: body.title });
+    let pipelineModel = reqModel ?? "(project default)";
     try {
       // Resolve the frontend-selected service+model, matching the chat path so
       // fanfic creation uses the exact same model the user picked there.
       const config = await loadCurrentProjectConfig({ requireApiKey: false });
       let pipelineClient = createLLMClient(config.llm);
-      let pipelineModel = config.llm.model;
+      pipelineModel = reqModel ?? config.llm.model;
       if (reqService && reqModel) {
         try {
           const configuredEntry = await resolveConfiguredServiceEntry(root, reqService);
@@ -6169,6 +6170,7 @@ export function createStudioServer(initialConfig: ProjectConfig, root: string, o
       broadcast("fanfic:complete", { bookId });
       return c.json({ ok: true, bookId: createdBookId });
     } catch (e) {
+      console.error("[studio] fanfic init failed", { bookId, title: body.title, model: pipelineModel }, e);
       broadcast("fanfic:error", { bookId, error: String(e) });
       return c.json({ error: String(e) }, 500);
     }

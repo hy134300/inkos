@@ -64,50 +64,97 @@ export class FanficCanonImporter extends BaseAgent {
     sourceName: string,
     language: "zh" | "en",
   ): Promise<{ readonly text: string; readonly compiled: boolean }> {
+    // Budget for compiling chunks. Keep the original 16k reservation so small
+    // context windows still split sensibly; the iterative compression below
+    // additionally enforces the stricter final-consumer budget.
     const budget = semanticInputBudget(this.ctx.client, { reservedOutputTokens: 16_384 });
     if (budget === undefined || estimateTextTokens(sourceText) <= budget) {
       return { text: sourceText, compiled: false };
     }
+    // Budget of the final submitStructured call (prepareWorkerMessages uses
+    // window - defaults.maxTokens - 2048). The compiled package must fit here.
+    const window = this.ctx.client._piModel?.contextWindow;
+    const maxOutput = this.ctx.client.defaults?.maxTokens ?? 0;
+    const finalBudget = window && Number.isFinite(window)
+      ? Math.max(1, window - maxOutput - 2048 - 1024) // extra 1024 margin for skills/work metadata
+      : budget;
 
-    const chunks = splitTextByEstimatedTokens(sourceText, budget);
-    const notes: string[] = [];
-    for (let index = 0; index < chunks.length; index++) {
-      const response = await this.chat(
-        [
-          {
-            role: "system",
-            content: language === "en"
-              ? "Compile the complete source chunk into a traceable Markdown evidence package with the activated import Skill."
-              : "按已激活的导入 Skill，把完整原作片段编译为可追溯 Markdown 资料包。",
-          },
-          {
-            role: "user",
-            content: [
-              language === "en" ? `Source: ${sourceName}` : `原作：${sourceName}`,
-              language === "en" ? `Chunk: ${index + 1}/${chunks.length}` : `片段：${index + 1}/${chunks.length}`,
-              "",
-              chunks[index],
-            ].join("\n"),
-          },
-        ],
-        { temperature: 0.2 },
-      );
-      const content = response.content.trim();
-      if (!content) throw new Error(`Fanfic source compiler returned empty output for chunk ${index + 1}/${chunks.length}.`);
-      notes.push([`## 片段 ${index + 1}/${chunks.length}`, content].join("\n\n"));
+    const header = language === "en"
+      ? [`# ${sourceName} semantic source package`, "", "Compiled from every source chunk for traceable canon extraction.", ""]
+      : [`# 《${sourceName}》语义资料包`, "", "逐段读取完整原作素材后编译，用于可追溯正典抽取。", ""];
+
+    let compiledText = await this.compileChunks(sourceText, budget, sourceName, language);
+
+    // The concatenated chunk notes can themselves exceed the final consumer's
+    // protected-context budget (each chunk is compiled up to the full budget).
+    // Iteratively compress the compiled package until it fits, so the canon
+    // compiler / architect never receives an oversized protected message.
+    let pass = 0;
+    while (estimateTextTokens([...header, compiledText].join("\n")) > finalBudget && pass < 5) {
+      pass += 1;
+      const compressed = await this.compileChunks(compiledText, finalBudget, sourceName, language, pass);
+      const joined = [...header, compressed].join("\n");
+      // Stop if a compression pass made no progress (avoid an endless loop).
+      if (estimateTextTokens(joined) >= estimateTextTokens([...header, compiledText].join("\n"))) {
+        compiledText = compressed;
+        break;
+      }
+      compiledText = compressed;
     }
 
     return {
       compiled: true,
-      text: [
-        language === "en" ? `# ${sourceName} semantic source package` : `# 《${sourceName}》语义资料包`,
-        "",
-        language === "en"
-          ? "Compiled from every source chunk for traceable canon extraction."
-          : "逐段读取完整原作素材后编译，用于可追溯正典抽取。",
-        "",
-        ...notes,
-      ].join("\n"),
+      text: [...header, compiledText].join("\n"),
     };
+  }
+
+  private async compileChunks(
+    text: string,
+    budget: number,
+    sourceName: string,
+    language: "zh" | "en",
+    pass = 0,
+  ): Promise<string> {
+    const chunks = splitTextByEstimatedTokens(text, budget);
+    if (chunks.length === 1) return chunks[0];
+    const notes: string[] = [];
+    for (let index = 0; index < chunks.length; index++) {
+      const content = await this.compileChunk(chunks[index], sourceName, index, chunks.length, language, pass);
+      notes.push([`## 片段 ${index + 1}/${chunks.length}`, content].join("\n\n"));
+    }
+    return notes.join("\n\n");
+  }
+
+  private async compileChunk(
+    chunk: string,
+    sourceName: string,
+    index: number,
+    total: number,
+    language: "zh" | "en",
+    pass: number,
+  ): Promise<string> {
+    const response = await this.chat(
+      [
+        {
+          role: "system",
+          content: language === "en"
+            ? `Compile the source chunk into a concise, traceable Markdown evidence package with the activated import Skill.${pass > 0 ? " This is a compression pass: merge and shorten while preserving all canon-relevant evidence." : ""}`
+            : `按已激活的导入 Skill，把原作片段编译为简洁、可追溯的 Markdown 资料包。${pass > 0 ? " 这是压缩轮：在保留全部正典相关证据的前提下合并并精简。" : ""}`,
+        },
+        {
+          role: "user",
+          content: [
+            language === "en" ? `Source: ${sourceName}` : `原作：${sourceName}`,
+            language === "en" ? `Chunk: ${index + 1}/${total}${pass > 0 ? ` (compression pass ${pass})` : ""}` : `片段：${index + 1}/${total}${pass > 0 ? `（压缩轮 ${pass}）` : ""}`,
+            "",
+            chunk,
+          ].join("\n"),
+        },
+      ],
+      { temperature: 0.2 },
+    );
+    const content = response.content.trim();
+    if (!content) throw new Error(`Fanfic source compiler returned empty output for chunk ${index + 1}/${total}${pass > 0 ? ` (pass ${pass})` : ""}.`);
+    return content;
   }
 }
