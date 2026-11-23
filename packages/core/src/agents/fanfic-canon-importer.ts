@@ -37,7 +37,10 @@ export class FanficCanonImporter extends BaseAgent {
         description: "Submit the source-grounded canon sections for host persistence.",
         parameters: FanficCanonToolSchema,
       },
-      { temperature: 0.3 },
+      // The compiled package is already sized to the final consumer budget.
+      // Skipping skills here keeps the protected prompt within that budget;
+      // fan-fiction Skills remain active for the downstream foundation stage.
+      { temperature: 0.3, professionalGuidance: false },
     );
 
     const canonMarkdown = result.canonMarkdown.trim();
@@ -151,7 +154,11 @@ export class FanficCanonImporter extends BaseAgent {
           ].join("\n"),
         },
       ],
-      { temperature: 0.2 },
+      // Mechanical chunk compilation needs no professional writing guidance;
+      // the system prompt above already carries the compile instruction. Skipping
+      // skills avoids injecting ~24k protected tokens that would overflow the
+      // context when combined with a full-size chunk.
+      { temperature: 0.2, professionalGuidance: false },
     );
     const content = response.content.trim();
     if (!content) throw new Error(`Fanfic source compiler returned empty output for chunk ${index + 1}/${total}${pass > 0 ? ` (pass ${pass})` : ""}.`);
