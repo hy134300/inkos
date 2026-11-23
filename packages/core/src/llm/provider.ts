@@ -22,6 +22,7 @@ import {
   agentTrajectoryHeaders,
   beginAgentModelCall,
 } from "./agent-trajectory.js";
+import { recordExecutionEvidence } from "../harness/execution-evidence.js";
 import type { LLMApiFormat } from "./api-format.js";
 
 
@@ -1497,9 +1498,23 @@ export async function chatCompletion(
   const signal = options?.signal;
   const errorCtx = { baseUrl: client._piModel?.baseUrl ?? "(unknown)", model, service: client.service };
   const modelCall = beginAgentModelCall();
+  const modelCallId = modelCall?.modelCallId;
+  const useNative = shouldUseNativeCustomTransport(client);
+  // The native custom transport bypasses pi-stream, so mirror its lifecycle into
+  // execution evidence for the Studio AI-live feed (guardedPiStream already does
+  // this on the pi-ai path — do not double-emit there).
+  if (useNative) {
+    recordExecutionEvidence("model-call-started", {
+      trace: modelCall,
+      model,
+      service: client.service,
+      maxTokens: resolved.maxTokens,
+      context: { systemPrompt: messages.filter((m) => m.role === "system").map((m) => m.content).join("\n\n"), messages },
+    });
+  }
 
   try {
-    return await withTransientLLMRetry(
+    const result = await withTransientLLMRetry(
       async (attempt) => {
         signal?.throwIfAborted();
         const traceHeaders = agentTrajectoryHeaders(client._piModel?.baseUrl, modelCall, attempt, {
@@ -1531,14 +1546,17 @@ export async function chatCompletion(
           reservedOutputTokens: resolved.maxTokens,
         });
         try {
-          if (shouldUseNativeCustomTransport(client)) {
+          if (useNative) {
             return await chatCompletionViaCustomOpenAICompatible(
               client,
               model,
               messages,
               resolved,
               onStreamProgress,
-              onTextDelta,
+              (delta: string) => {
+                recordExecutionEvidence("model-output-delta", { modelCallId, delta });
+                onTextDelta?.(delta);
+              },
               deadline?.signal ?? signal,
               traceHeaders,
               deadline?.activity,
@@ -1565,7 +1583,26 @@ export async function chatCompletion(
       // text; callers can also opt out (e.g. fast-fail diagnostics).
       { enabled: (options?.retry ?? true) && !onTextDelta, signal },
     );
+    if (useNative) {
+      recordExecutionEvidence("model-call-completed", {
+        modelCallId,
+        status: "done",
+        response: { content: [{ type: "text", text: result.content }], usage: {
+          input: result.usage.promptTokens,
+          output: result.usage.completionTokens,
+          totalTokens: result.usage.totalTokens,
+        }, stopReason: "stop" },
+      });
+    }
+    return result;
   } catch (error) {
+    if (useNative) {
+      recordExecutionEvidence("model-call-completed", {
+        modelCallId,
+        status: "error",
+        response: { stopReason: "error", errorMessage: String(error) },
+      });
+    }
     // 注意：中断的流（PartialResponseError）不再"打捞"半截内容当成功返回——
     // 那会产出写到一半就结束的章节/设定文件。重试由 withTransientLLMRetry
     // 负责（完整重新生成）；重试耗尽后如实抛错。

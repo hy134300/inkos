@@ -125,12 +125,23 @@ export class FanficCanonImporter extends BaseAgent {
   ): Promise<string> {
     const chunks = splitTextByEstimatedTokens(text, budget);
     if (chunks.length === 1) return chunks[0];
-    const notes: string[] = [];
-    for (let index = 0; index < chunks.length; index++) {
-      const content = await this.compileChunk(chunks[index], sourceName, index, chunks.length, language, pass);
-      notes.push([`## 片段 ${index + 1}/${chunks.length}`, content].join("\n\n"));
-    }
-    return notes.join("\n\n");
+    // Compile chunks with bounded concurrency. A full novel can produce 70+
+    // chunks; serial compilation takes tens of minutes on slow models. A small
+    // pool keeps output order stable (evidence/notes follow chunk order) while
+    // cutting wall-clock time substantially.
+    const concurrency = 4;
+    const notes = new Array<string>(chunks.length);
+    let cursor = 0;
+    const worker = async (): Promise<void> => {
+      while (true) {
+        const index = cursor++;
+        if (index >= chunks.length) return;
+        const content = await this.compileChunk(chunks[index], sourceName, index, chunks.length, language, pass);
+        notes[index] = content;
+      }
+    };
+    await Promise.all(Array.from({ length: Math.min(concurrency, chunks.length) }, () => worker()));
+    return notes.map((content, index) => `## 片段 ${index + 1}/${chunks.length}\n\n${content}`).join("\n\n");
   }
 
   private async compileChunk(
