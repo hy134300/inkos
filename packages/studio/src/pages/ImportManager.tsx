@@ -1,12 +1,14 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { fetchJson, invalidateApiPaths, useApi, postApi } from "../hooks/use-api";
 import type { Theme } from "../hooks/use-theme";
 import type { TFunction } from "../hooks/use-i18n";
 import { useI18n } from "../hooks/use-i18n";
 import { useColors } from "../hooks/use-colors";
 import { tr } from "../lib/app-language";
-import { FileInput, BookCopy, Feather, BookMarked, Upload, Wand2 } from "lucide-react";
+import { FileInput, BookCopy, Feather, BookMarked, Upload, Wand2, ChevronDown } from "lucide-react";
 import { waitForStudioBookReady } from "../lib/book-ready";
+import { useServiceStore } from "../store/service";
+import { buildChatPageModelGroups, pickModelSelection } from "./chat-page-state";
 
 interface BookSummary {
   readonly id: string;
@@ -53,6 +55,19 @@ export function ImportManager({ nav, theme, t, initialTab }: { nav: Nav; theme: 
   const [ffGenre, setFfGenre] = useState("other");
   const [ffLang, setFfLang] = useState(lang);
 
+  // Model selection (mirrors the chat page so fanfic creation uses the same model)
+  const services = useServiceStore((s) => s.services);
+  const servicesLoading = useServiceStore((s) => s.servicesLoading);
+  const bankModelsLoading = useServiceStore((s) => s.bankModelsLoading);
+  const customModelsLoading = useServiceStore((s) => s.customModelsLoading);
+  const modelsByService = useServiceStore((s) => s.modelsByService);
+  const fetchServices = useServiceStore((s) => s.fetchServices);
+  const fetchBankModels = useServiceStore((s) => s.fetchBankModels);
+  const fetchCustomModels = useServiceStore((s) => s.fetchCustomModels);
+  const [configuredPreference, setConfiguredPreference] = useState<{ service: string | null; model: string | null } | null>(null);
+  const [ffService, setFfService] = useState<string | null>(null);
+  const [ffModel, setFfModel] = useState<string | null>(null);
+
   // Spinoff (番外) state
   const [spTitle, setSpTitle] = useState("");
   const [spParent, setSpParent] = useState("");
@@ -71,6 +86,51 @@ export function ImportManager({ nav, theme, t, initialTab }: { nav: Nav; theme: 
       setStatus(null);
     }
   }, [initialTab]);
+
+  useEffect(() => { void fetchServices(); }, [fetchServices]);
+  useEffect(() => {
+    void fetchBankModels();
+    void fetchCustomModels();
+  }, [fetchBankModels, fetchCustomModels]);
+  useEffect(() => {
+    let cancelled = false;
+    void fetchJson<{ service?: string | null; defaultModel?: string | null }>("/services/config")
+      .then((payload) => {
+        if (!cancelled) {
+          setConfiguredPreference({ service: payload.service ?? null, model: payload.defaultModel ?? null });
+        }
+      })
+      .catch(() => { if (!cancelled) setConfiguredPreference(null); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const groupedModels = useMemo(
+    () => buildChatPageModelGroups(services, modelsByService, configuredPreference),
+    [configuredPreference, modelsByService, services],
+  );
+  const modelPickerStatus = useMemo(() => {
+    if (servicesLoading || services.length === 0) return "loading" as const;
+    const connected = services.filter((s) => s.connected);
+    if (connected.length === 0) return "no-models" as const;
+    if (bankModelsLoading) return "loading" as const;
+    if (groupedModels.some((g) => g.models.length > 0)) return "ready" as const;
+    const hasConnectedBank = connected.some((s) => !s.service.startsWith("custom"));
+    const hasConnectedCustom = connected.some((s) => s.service.startsWith("custom"));
+    if (!hasConnectedBank && hasConnectedCustom && customModelsLoading) return "loading" as const;
+    return "no-models" as const;
+  }, [bankModelsLoading, customModelsLoading, groupedModels, services, servicesLoading]);
+
+  useEffect(() => {
+    const next = pickModelSelection(groupedModels, ffModel, ffService, configuredPreference);
+    if (next) { setFfModel(next.model); setFfService(next.service); }
+  }, [configuredPreference, ffModel, ffService, groupedModels]);
+
+  const selectedModelLabel = useMemo(() => {
+    if (!ffModel) return tr("选择模型", "Select model");
+    const group = groupedModels.find((g) => g.service === ffService);
+    const model = group?.models.find((m) => m.id === ffModel);
+    return group ? `${group.label} · ${model?.name ?? ffModel}` : (model?.name ?? ffModel);
+  }, [ffModel, ffService, groupedModels]);
 
   const handleImportChapters = async () => {
     if (!chText.trim() || !chBookId) return;
@@ -138,6 +198,8 @@ export function ImportManager({ nav, theme, t, initialTab }: { nav: Nav; theme: 
           ...(ffFile ? { sourcePath, sourceName } : { sourceText: ffText }),
           mode: ffMode,
           genre: ffGenre, language: ffLang,
+          ...(ffService ? { service: ffService } : {}),
+          ...(ffModel ? { model: ffModel } : {}),
         }),
       });
       if (data.bookId) {
@@ -307,6 +369,35 @@ export function ImportManager({ nav, theme, t, initialTab }: { nav: Nav; theme: 
               placeholder={t("import.fanficTitle")}
               className="w-full px-3 py-2 rounded-lg bg-secondary/30 border border-border text-sm"
             />
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-sm text-muted-foreground">{tr("创作模型", "Model")}:</span>
+              {modelPickerStatus === "ready" ? (
+                <div className="relative">
+                  <select
+                    value={ffModel && ffService ? `${ffService}::${ffModel}` : ""}
+                    onChange={(e) => {
+                      const [service, model] = e.target.value.split("::");
+                      setFfService(service);
+                      setFfModel(model);
+                    }}
+                    className="appearance-none px-3 py-2 pr-8 rounded-lg bg-secondary/30 border border-border text-sm"
+                  >
+                    {groupedModels.flatMap((g) => g.models.map((m) => (
+                      <option key={`${g.service}::${m.id}`} value={`${g.service}::${m.id}`}>
+                        {g.label} · {m.name ?? m.id}
+                      </option>
+                    )))}
+                  </select>
+                  <ChevronDown size={14} className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                </div>
+              ) : (
+                <span className="text-sm text-muted-foreground/60">
+                  {modelPickerStatus === "loading"
+                    ? tr("加载模型中...", "Loading models...")
+                    : tr("请先在模型配置中连接服务", "Configure a model service first")}
+                </span>
+              )}
+            </div>
             <div className="grid grid-cols-3 gap-3">
               <select value={ffMode} onChange={(e) => setFfMode(e.target.value)}
                 className="px-3 py-2 rounded-lg bg-secondary/30 border border-border text-sm">

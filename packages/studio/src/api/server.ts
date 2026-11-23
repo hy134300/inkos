@@ -6074,9 +6074,17 @@ export function createStudioServer(initialConfig: ProjectConfig, root: string, o
       title: string; sourceText?: string; sourcePath?: string; sourceName?: string;
       mode?: string; genre?: string; platform?: string;
       targetChapters?: number; chapterWordCount?: number; language?: string;
+      service?: string; model?: string;
     }>();
     if (!body.title || (!body.sourceText?.trim() && !body.sourcePath?.trim())) {
       return c.json({ error: "title and sourceText or sourcePath are required" }, 400);
+    }
+    const language = await currentProjectLanguage();
+    const reqService = body.service?.trim();
+    const reqModel = body.model?.trim();
+    if (reqModel && !isTextChatModelId(reqModel)) {
+      const message = nonTextModelMessage(reqModel, language);
+      return c.json({ error: message, response: message }, 400);
     }
 
     const now = new Date().toISOString();
@@ -6098,7 +6106,45 @@ export function createStudioServer(initialConfig: ProjectConfig, root: string, o
 
     broadcast("fanfic:start", { bookId, title: body.title });
     try {
-      const pipeline = new PipelineRunner(await buildPipelineConfig());
+      // Resolve the frontend-selected service+model, matching the chat path so
+      // fanfic creation uses the exact same model the user picked there.
+      const config = await loadCurrentProjectConfig({ requireApiKey: false });
+      let pipelineClient = createLLMClient(config.llm);
+      let pipelineModel = config.llm.model;
+      if (reqService && reqModel) {
+        try {
+          const configuredEntry = await resolveConfiguredServiceEntry(root, reqService);
+          const resolved = await resolveServiceModel(
+            reqService,
+            reqModel,
+            root,
+            await resolveConfiguredServiceBaseUrl(root, reqService),
+            configuredEntry?.apiFormat,
+          );
+          pipelineClient = createLLMClient({
+            ...config.llm,
+            service: configuredEntry?.service ?? reqService,
+            model: reqModel,
+            apiKey: resolved.apiKey ?? "",
+            ...(configuredEntry?.apiFormat ? { apiFormat: configuredEntry.apiFormat } : {}),
+            ...(configuredEntry?.stream !== undefined ? { stream: configuredEntry.stream } : {}),
+            baseUrl: configuredEntry?.baseUrl ?? "",
+          } as any);
+          pipelineModel = reqModel;
+        } catch (e) {
+          if (e instanceof ServiceApiKeyNotFoundError) {
+            return c.json({
+              error: pick(language, `请先为 ${reqService} 配置 API Key`, `Configure an API Key for ${reqService} first`),
+            }, 400);
+          }
+          throw e;
+        }
+      }
+      const pipeline = new PipelineRunner(await buildPipelineConfig({
+        client: pipelineClient,
+        model: pipelineModel,
+        currentConfig: config,
+      }));
       const skills = await resolveStudioProfileSkills(root, "longform-novel", {
         extraSkillIds: ["inkos-story-import", "inkos-fanfic-writing"],
       });
