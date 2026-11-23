@@ -17,21 +17,29 @@ export function splitTextByEstimatedTokens(text: string, budgetTokens: number): 
   const lines = text.match(/[^\n]*\n|[^\n]+$/g) ?? [text];
   const chunks: string[] = [];
   let current = "";
+  let currentTokens = 0;
 
   const flush = () => {
     if (current) chunks.push(current);
     current = "";
+    currentTokens = 0;
   };
 
   for (const line of lines) {
-    if (estimateTextTokens(line) > budgetTokens) {
+    const lineTokens = estimateTextTokens(line);
+    if (lineTokens > budgetTokens) {
       flush();
       chunks.push(...splitOversizedUnit(line, budgetTokens));
       continue;
     }
-    const candidate = current + line;
-    if (current && estimateTextTokens(candidate) > budgetTokens) flush();
+    // Incremental accounting: estimateTextTokens scans the whole string, so
+    // re-estimating current+line on every row is O(N^2) for big line counts
+    // (a full novel has hundreds of thousands of lines). Track the running
+    // token count instead; a small rounding slack (<4 tokens per chunk) is
+    // harmless for chunk sizing.
+    if (current && currentTokens + lineTokens > budgetTokens) flush();
     current += line;
+    currentTokens += lineTokens;
   }
   flush();
   return chunks;
