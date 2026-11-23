@@ -45,6 +45,25 @@ it('pins registered creation sources before producer failure and resumes the sam
  }finally{server.closeAllConnections();await new Promise<void>(resolve=>server.close(()=>resolve()));await rm(root,{recursive:true,force:true});}
 },30000);
 
+it('reuses a draft pinned source when resumed from a re-uploaded file path',async()=>{
+ const root=await mkdtemp(join(tmpdir(),'inkos-draft-source-reuse-'));
+ try{
+  const pinnedText='同人原著正文，第一次上传时绑定的内容。\n';
+  await saveWorkManifest(root,createWorkManifest({id:'fan',title:'Fan',profileId:'longform-novel',language:'zh'}));
+  await mkdir(join(root,'works/fan/source'),{recursive:true});
+  const bound=await syncWorkSourceArtifacts({projectRoot:root,workId:'fan',accept:true,writes:[{relativePath:'works/fan/source/source-material.md',content:pinnedText}]});
+  const draft=await loadWorkManifest(root,'fan');
+  await saveWorkManifest(root,{...draft,status:'draft'});
+  // A re-uploaded file at a different timestamped path with different bytes.
+  await mkdir(join(root,'.inkos','uploads','canon'),{recursive:true});
+  await writeFile(join(root,'.inkos','uploads','canon','new-upload-fan.txt'),'完全不同的一次上传内容。\n');
+  const result=await loadCreationSource({projectRoot:root,targetWorkId:'fan',sourcePath:'.inkos/uploads/canon/new-upload-fan.txt',purpose:'reference'});
+  expect(result.text).toBe(pinnedText);
+  expect(result.lineage).toBeDefined();
+  expect(bound.artifacts.length).toBeGreaterThan(0);
+ }finally{await rm(root,{recursive:true,force:true});}
+});
+
 it('projects side-story canon from accepted snapshots and keeps its reference set stable on resume',async()=>{
  const root=await mkdtemp(join(tmpdir(),'inkos-parent-canon-'));
  try{

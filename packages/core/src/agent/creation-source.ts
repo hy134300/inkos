@@ -68,6 +68,18 @@ export async function loadCreationSource(input:{
   const bound=previous?.artifacts.find(a=>a.revisions.some(r=>r.id===a.currentRevisionId&&r.path==='source/source-material.md'));
   if(bound){
     const original=await readArtifactRevision({projectRoot:input.projectRoot,workId:previous!.id,artifactId:bound.id});
+    // A draft resumed from a freshly uploaded file should reuse the source it
+    // already pinned instead of comparing against new bytes: uploads land at
+    // timestamped temp paths, so re-uploading the very same book produces
+    // different markdown and would spuriously conflict. Explicit artifact
+    // references (input.source) still require the exact pinned identity.
+    if(previous?.status==='draft' && input.sourcePath?.trim()){
+      return {
+        text: original.bytes.toString('utf8'),
+        name: input.sourceName?.trim() || previous.title || result.name,
+        lineage: previous.lineage,
+      };
+    }
     const pinned=previous!.lineage.filter(item=>item.sourceRevisionId);
     const identities=(items:ReadonlyArray<WorkLineage>)=>items.map(item=>[item.sourceWorkId,item.sourceArtifactId,item.sourceRevisionId].join('/')).sort();
     if(original.bytes.toString('utf8')!==result.text||JSON.stringify(identities(pinned))!==JSON.stringify(identities(result.lineage)))throw Object.assign(new Error('This draft already has a different source. Resume with its pinned source or create another Work.'),{code:'CREATION_SOURCE_CONFLICT'});
