@@ -329,7 +329,7 @@ export function ImportManager({ nav, theme, t, initialTab }: { nav: Nav; theme: 
               </select>
             </div>
             <p className="text-sm text-muted-foreground">
-              {tr("可上传整本原著（TXT / Markdown / PDF，≤18 MB），也可以直接粘贴原作文本/设定/角色资料。上传文件后优先使用文件。", "Upload a full source novel (TXT / Markdown / PDF, ≤18 MB) or paste source material below. An uploaded file takes priority.")}
+              {tr("可上传整本原著（TXT / Markdown / PDF，≤80 MB），也可以直接粘贴原作文本/设定/角色资料。上传文件后优先使用文件。", "Upload a full source novel (TXT / Markdown / PDF, ≤80 MB) or paste source material below. An uploaded file takes priority.")}
             </p>
             <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-border bg-secondary/20 px-4 py-4 text-sm hover:bg-secondary/30">
               <Upload size={18} className="text-primary" />

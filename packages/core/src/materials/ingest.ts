@@ -40,7 +40,7 @@ export interface IngestMaterialDeps {
   readonly now?: () => Date;
 }
 
-const MAX_SOURCE_BYTES = 18 * 1024 * 1024;
+const MAX_SOURCE_BYTES = 80 * 1024 * 1024;
 
 export async function ingestMaterial(
   projectRoot: string,
