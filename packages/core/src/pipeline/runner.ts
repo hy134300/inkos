@@ -45,6 +45,7 @@ import {
   renderCurrentStateProjection,
   renderHooksProjection,
 } from "../state/state-projections.js";
+import { existsSync } from "node:fs";
 import { readFile, readdir, writeFile, mkdir, rm, stat } from "node:fs/promises";
 import { join } from "node:path";
 import { reconcileChapterStateAfterReview, unresolvedStateObservation } from "./chapter-state-recovery.js";
@@ -708,8 +709,23 @@ export class PipelineRunner {
     await this.prepareDraftBook(book);
     const bookDir = this.state.bookDir(book.id);
     try {
-      this.logStage(stageLanguage, { zh: "导入同人正典", en: "importing fanfic canon" });
-      const fanficCanon = await this.importFanficCanon(book.id, sourceText, sourceName, fanficMode, { accept: false });
+      // Resume path: a failed draft may already contain a fully compiled canon.
+      // Reuse it instead of re-running the expensive chunk compilation (which
+      // can be 70+ model calls for a full novel) and continue at the stage
+      // that actually failed (foundation generation).
+      const canonPath = join(bookDir, "story", "fanfic_canon.md");
+      let fanficCanon: string;
+      if (existsSync(canonPath)) {
+        fanficCanon = await readFile(canonPath, "utf-8");
+        if (fanficCanon.trim()) {
+          this.logStage(stageLanguage, { zh: "复用已编译同人正典", en: "reusing compiled fanfic canon" });
+        } else {
+          fanficCanon = await this.importFanficCanon(book.id, sourceText, sourceName, fanficMode, { accept: false });
+        }
+      } else {
+        this.logStage(stageLanguage, { zh: "导入同人正典", en: "importing fanfic canon" });
+        fanficCanon = await this.importFanficCanon(book.id, sourceText, sourceName, fanficMode, { accept: false });
+      }
 
       const architect = new ArchitectAgent(this.agentCtxFor("architect", book.id));
       this.logStage(stageLanguage, { zh: "生成同人基础设定", en: "generating fanfic foundation" });

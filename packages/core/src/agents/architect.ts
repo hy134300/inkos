@@ -279,7 +279,7 @@ ${reviseFrom.userFeedback || "（无）"}
           : "提交可读的故事框架与卷纲。",
         parameters: FoundationOutlineToolSchema,
       },
-      { temperature: input.temperature, maxTokens: Math.min(8192, this.ctx.client.defaults.maxTokens) },
+      { temperature: input.temperature, maxTokens: this.ctx.client.defaults.maxTokens },
     );
     await input.onOutline?.({
       storyFrame: outline.storyFrame.trim(),
@@ -322,7 +322,7 @@ ${reviseFrom.userFeedback || "（无）"}
         : "列出影响开篇冲突的具名人物，只提交姓名和主要/次要角色级别，不把无名岗位群体扩写成虚构人物。"},
       {role:"user",content:castContext},
     ],{name:"submit_foundation_cast_index",label:"Identify opening cast",description:"Submit the names and tiers of the opening cast.",parameters:FoundationCastIndexToolSchema},
-    {temperature:input.temperature,maxTokens:Math.min(2048,this.ctx.client.defaults.maxTokens)});
+    {temperature:input.temperature,maxTokens:this.ctx.client.defaults.maxTokens});
     const {result:cards} = await this.submitStructured([
       {role:"system",content:input.language==="en"
         ? "Create concise character cards for the named people who shape the opening conflict. Ground each card in the supplied story. Give present motive, knowledge, relationship pressure and limits in about 80–120 words; avoid repeating the plot or expanding unnamed occupational groups into full biographies."
