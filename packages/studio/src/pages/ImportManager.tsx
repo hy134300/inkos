@@ -48,6 +48,7 @@ export function ImportManager({ nav, theme, t, initialTab }: { nav: Nav; theme: 
   // Fanfic state
   const [ffTitle, setFfTitle] = useState("");
   const [ffText, setFfText] = useState("");
+  const [ffFile, setFfFile] = useState<File | null>(null);
   const [ffMode, setFfMode] = useState("canon");
   const [ffGenre, setFfGenre] = useState("other");
   const [ffLang, setFfLang] = useState(lang);
@@ -114,15 +115,28 @@ export function ImportManager({ nav, theme, t, initialTab }: { nav: Nav; theme: 
   };
 
   const handleFanficInit = async () => {
-    if (!ffTitle.trim() || !ffText.trim()) return;
+    if (!ffTitle.trim() || (!ffText.trim() && !ffFile)) return;
     setLoading(true);
     setStatus(null);
     try {
+      let sourcePath: string | undefined;
+      let sourceName: string | undefined;
+      if (ffFile) {
+        const uploaded = await fetchJson<{ storedPath: string }>("/import/canon/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ filename: ffFile.name, dataUrl: await fileToDataUrl(ffFile) }),
+        });
+        sourcePath = uploaded.storedPath;
+        sourceName = ffFile.name;
+      }
       const data = await fetchJson<{ bookId?: string }>("/fanfic/init", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          title: ffTitle, sourceText: ffText, mode: ffMode,
+          title: ffTitle,
+          ...(ffFile ? { sourcePath, sourceName } : { sourceText: ffText }),
+          mode: ffMode,
           genre: ffGenre, language: ffLang,
         }),
       });
@@ -314,11 +328,26 @@ export function ImportManager({ nav, theme, t, initialTab }: { nav: Nav; theme: 
                 <option value="en">English</option>
               </select>
             </div>
+            <p className="text-sm text-muted-foreground">
+              {tr("可上传整本原著（TXT / Markdown / PDF，≤18 MB），也可以直接粘贴原作文本/设定/角色资料。上传文件后优先使用文件。", "Upload a full source novel (TXT / Markdown / PDF, ≤18 MB) or paste source material below. An uploaded file takes priority.")}
+            </p>
+            <label className="flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-border bg-secondary/20 px-4 py-4 text-sm hover:bg-secondary/30">
+              <Upload size={18} className="text-primary" />
+              <span className="min-w-0 flex-1 truncate">
+                {ffFile?.name ?? tr("选择 TXT、Markdown 或 PDF 文件", "Choose a TXT, Markdown, or PDF file")}
+              </span>
+              <input
+                type="file"
+                accept=".txt,.md,.markdown,.pdf,text/plain,text/markdown,application/pdf"
+                className="sr-only"
+                onChange={(event) => setFfFile(event.target.files?.[0] ?? null)}
+              />
+            </label>
             <textarea value={ffText} onChange={(e) => setFfText(e.target.value)} rows={10}
               placeholder={t("import.pasteMaterial")}
               className="w-full px-3 py-2 rounded-lg bg-secondary/30 border border-border text-sm resize-none font-mono"
             />
-            <button onClick={handleFanficInit} disabled={loading || !ffTitle.trim() || !ffText.trim()}
+            <button onClick={handleFanficInit} disabled={loading || !ffTitle.trim() || (!ffText.trim() && !ffFile)}
               className={`px-4 py-2 text-sm rounded-lg ${c.btnPrimary} disabled:opacity-30`}>
               {loading ? t("import.creating") : t("import.fanfic")}
             </button>

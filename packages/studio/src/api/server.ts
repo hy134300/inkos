@@ -6071,12 +6071,12 @@ export function createStudioServer(initialConfig: ProjectConfig, root: string, o
 
   app.post("/api/v1/fanfic/init", async (c) => {
     const body = await c.req.json<{
-      title: string; sourceText: string; sourceName?: string;
+      title: string; sourceText?: string; sourcePath?: string; sourceName?: string;
       mode?: string; genre?: string; platform?: string;
       targetChapters?: number; chapterWordCount?: number; language?: string;
     }>();
-    if (!body.title || !body.sourceText) {
-      return c.json({ error: "title and sourceText are required" }, 400);
+    if (!body.title || (!body.sourceText?.trim() && !body.sourcePath?.trim())) {
+      return c.json({ error: "title and sourceText or sourcePath are required" }, 400);
     }
 
     const now = new Date().toISOString();
@@ -6108,7 +6108,8 @@ export function createStudioServer(initialConfig: ProjectConfig, root: string, o
         tool: createFanficBookTool(pipeline, root, { defaultSkills: skills }),
         parameters: {
           title: bookConfig.title,
-          sourceText: body.sourceText,
+          ...(body.sourceText?.trim() ? { sourceText: body.sourceText } : {}),
+          ...(body.sourcePath?.trim() ? { sourcePath: body.sourcePath } : {}),
           sourceName: body.sourceName ?? "source",
           mode: body.mode ?? "canon",
           genre: bookConfig.genre,
