@@ -71,6 +71,7 @@ import { opaqueConversationId, runWithAgentTrajectory } from "../llm/agent-traje
 import { guardedPiNonStreaming, guardedPiStream } from "./pi-stream.js";
 import { splitTextByEstimatedTokens } from "../llm/semantic-input.js";
 import { estimateTextTokens } from "../llm/provider.js";
+import { executionProgress } from "../harness/execution-progress.js";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -1452,6 +1453,39 @@ async function runAgentSessionUnlocked(
       ?? (!turnHasObservableOutcome(turnMessages) ? "Agent returned no text or tool result." : undefined);
     if (errorMessage) {
       const failedError = errorMessage;
+      // Mark the failed turn as committed for transcript restoration. This does
+      // NOT mean the request succeeded: request_failed still carries the error.
+      // It only says "these tool calls/results really happened" so a later turn
+      // can see and continue from them instead of replaying the whole request.
+      const committed = await appendAgentTranscriptEvent(projectRoot, sessionId, (seq) => ({
+        type: "request_committed",
+        version: 1,
+        sessionId,
+        requestId,
+        seq,
+        timestamp: Date.now(),
+      }));
+      cached.lastCommittedSeq = committed.seq;
+      const progress = executionProgress(agent.state.messages, 6000);
+      if (progress) {
+        await appendAgentTranscriptEvent(projectRoot, sessionId, (seq) => ({
+          type: "message",
+          version: 1,
+          sessionId,
+          requestId,
+          seq,
+          timestamp: Date.now(),
+          role: "system",
+          uuid: `recovery-${requestId}`,
+          parentUuid: null,
+          message: {
+            role: "system",
+            content: `[Failed turn recovery facts]\nThe previous turn ended with error: ${failedError}\nOnly the following tool receipts are trustworthy; do not assume unlisted work happened.\n${progress}\nContinue from the saved state. Do not repeat confirmed successful writes unless the author explicitly asks. If the original instruction was vague, choose the smallest safe next step and state it.`,
+            timestamp: Date.now(),
+          },
+          visibility: "model",
+        }));
+      }
       await appendAgentTranscriptEvent(projectRoot, sessionId, (seq) => ({
         type: "request_failed",
         version: 1,
@@ -1476,6 +1510,15 @@ async function runAgentSessionUnlocked(
       finishEpisode(completion?.status === "blocked" ? "failed" : "completed");
     }
   } catch (error) {
+    const committed = await appendAgentTranscriptEvent(projectRoot, sessionId, (seq) => ({
+      type: "request_committed",
+      version: 1,
+      sessionId,
+      requestId,
+      seq,
+      timestamp: Date.now(),
+    }));
+    if (cached) cached.lastCommittedSeq = committed.seq;
     await appendAgentTranscriptEvent(projectRoot, sessionId, (seq) => ({
       type: "request_failed",
       version: 1,
