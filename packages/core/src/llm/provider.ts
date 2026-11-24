@@ -38,12 +38,7 @@ export interface StreamProgress {
 export type OnStreamProgress = (progress: StreamProgress) => void;
 
 const INKOS_USER_AGENT = "InkOS/2.0.0";
-// Custom / catalog-unknown models (e.g. local OpenAI-compatible proxies) do
-// not have a model card, so they fall back to this output budget. Many of these
-// endpoints expose reasoning models that spend thousands of tokens on hidden
-// thinking before emitting visible content or a tool call. 24k was frequently
-// exhausted; keep a generous ceiling so thinking cannot crowd out the result.
-const UNKNOWN_MODEL_FALLBACK_MAX_TOKENS = 65536;
+const UNKNOWN_MODEL_FALLBACK_MAX_TOKENS = 8192 * 3;
 const TRANSIENT_LLM_RETRIES = 2;
 const DEFAULT_FIRST_STREAM_EVENT_TIMEOUT_MS = 120_000;
 const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 90_000;
@@ -550,11 +545,17 @@ export function __resetFixedTemperatureWarnings(): void {
  * context window so the prompt still fits.
  */
 export function structuredOutputBudget(client: LLMClient): number {
-  const floor = 16_384;
-  const contextHalf = Number.isFinite(client._piModel?.contextWindow)
-    ? Math.max(floor, Math.floor(client._piModel!.contextWindow! / 2))
-    : 32_768;
-  return Math.min(Math.max(client.defaults.maxTokens, floor), contextHalf);
+  // Structured workers need room for hidden reasoning + a complete tool call.
+  // Catalog-unknown custom models carry a conservative defaults.maxTokens (24k)
+  // that reasoning endpoints often exhaust. Allow up to a quarter of the
+  // context window for the result, never below defaults and never above half.
+  const contextWindow = client._piModel?.contextWindow;
+  // Keep the output share modest so workers with very large protected context
+  // (e.g. a long chapter draft for the state settler) still fit their input.
+  const cap = Number.isFinite(contextWindow)
+    ? Math.max(7_168, Math.floor(contextWindow! * 0.27))
+    : 24_576;
+  return Math.min(Math.max(client.defaults.maxTokens, 7_168), cap);
 }
 
 export function estimateTextTokens(text: string): number {
