@@ -635,20 +635,53 @@ export async function compileHarnessContextText(input: {
       : guardedPiNonStreaming(input.model,context,options,input.proxyUrl);
     return stream.result();
   };
-  let final = await run(outputBudget);
   const textOf = (message: Awaited<ReturnType<typeof run>>) => message.content
     .filter((part):part is Extract<(typeof part),{type:'text'}>=>part.type==='text')
     .map(part=>part.text).join('').trim();
-  if (!textOf(final) && final.stopReason === 'length') {
-    // Thinking exhausted the output budget — retry with a doubled ceiling.
-    final = await run(Math.min(Math.max(outputBudget * 3, 12_288), 32_768));
+  const isEmptyFailure = (error: unknown): boolean => {
+    const message = error instanceof Error ? error.message : String(error);
+    const code = (error as { code?: string } | undefined)?.code;
+    return code === 'MODEL_EMPTY_RESPONSE'
+      || /without text or a tool call|returned no text|MODEL_EMPTY/i.test(message);
+  };
+  let final: Awaited<ReturnType<typeof run>> | undefined;
+  // Reasoning models can spend the whole output budget on hidden thinking and
+  // either return no text or make the transport retry path throw. Retry with a
+  // larger budget when that happens; some models need far more than 4096 tokens.
+  for (const budget of [outputBudget, Math.min(Math.max(outputBudget * 3, 12_288), 32_768)]) {
+    try {
+      final = await run(budget);
+    } catch (error) {
+      if (!isEmptyFailure(error) || budget === Math.min(Math.max(outputBudget * 3, 12_288), 32_768)) throw error;
+      continue;
+    }
+    if (textOf(final)) break;
+    if (final.stopReason !== 'length') break;
+  }
+  if (!final) {
+    throw Object.assign(new Error('Context compilation returned no text'), { code: 'CONTEXT_EMPTY_RESULT' });
   }
   if(final.stopReason==='error'||final.stopReason==='aborted')throw new Error(final.errorMessage??'Context compilation failed');
   if(final.stopReason==='toolUse'||final.content.some(part=>part.type==='toolCall')) {
     throw Object.assign(new Error('Context compilation returned an unexpected tool call'),{code:'CONTEXT_UNEXPECTED_TOOL_CALL'});
   }
   const text = textOf(final);
-  if(!text)throw Object.assign(new Error('Context compilation returned no text'),{code:'CONTEXT_EMPTY_RESULT'});
+  if(!text) {
+    // Deterministic local fallback: keep the most recent quoted exchanges and a
+    // fixed header. This is less compressible than a model summary, but bounded
+    // and far safer than failing the whole agent turn on a flaky model.
+    const charsPerToken = 2; // conservative for mixed Chinese/English transcript
+    const maxChars = Math.max(1024, outputBudget * charsPerToken);
+    const tail = input.userPrompt.length > maxChars
+      ? input.userPrompt.slice(input.userPrompt.length - maxChars)
+      : input.userPrompt;
+    return [
+      "# Session transcript (local fallback summary)",
+      "Model summarization was unavailable; preserving the most recent transcript evidence verbatim.",
+      "",
+      tail,
+    ].join("\n").trim();
+  }
   return text;
 }
 
