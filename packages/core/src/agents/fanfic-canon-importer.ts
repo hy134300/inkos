@@ -18,11 +18,15 @@ export class FanficCanonImporter extends BaseAgent {
     sourceName: string,
     fanficMode: FanficMode,
     language: "zh" | "en" = "zh",
+    theme?: string,
   ): Promise<FanficCanonOutput> {
-    const source = await this.prepareSourceText(sourceText, sourceName, language);
+    const focusBlock = theme?.trim()
+      ? `\n\n## 本作主题与重点（提炼时优先考虑）\n${theme.trim()}\n以上主题只用于筛选和聚焦原作证据，不得据此改写或发明原作没有的事实。`
+      : "";
+    const source = await this.prepareSourceText(sourceText, sourceName, language, theme?.trim());
     const systemPrompt = language === "en"
-      ? `Compile source-grounded fan-fiction canon with the activated import and fan-fiction Skills. Mode: ${fanficMode}. Submit one readable Markdown canon document through the result tool. Include only source-evidenced sections relevant to this work; do not manufacture a genre-specific system.${source.compiled ? " The input is a traceable semantic source package." : ""}`
-      : `按已激活的导入与同人 Skills 编译有来源依据的同人正典。模式：${fanficMode}。通过结果工具提交一份可读 Markdown 正典文档；只保留原作有证据且对本作有用的内容，不强造题材专属体系。${source.compiled ? "输入是可追溯的语义资料包。" : ""}`;
+      ? `Compile source-grounded fan-fiction canon with the activated import and fan-fiction Skills. Mode: ${fanficMode}. Submit one readable Markdown canon document through the result tool. Include only source-evidenced sections relevant to this work; do not manufacture a genre-specific system.${source.compiled ? " The input is a traceable semantic source package." : ""}${theme?.trim() ? `\n\n## This work's theme and focus (prioritize while extracting)\n${theme.trim()}\nUse this only to select and focus source evidence, never to rewrite or invent facts absent from the source.` : ""}`
+      : `按已激活的导入与同人 Skills 编译有来源依据的同人正典。模式：${fanficMode}。通过结果工具提交一份可读 Markdown 正典文档；只保留原作有证据且对本作有用的内容，不强造题材专属体系。${source.compiled ? "输入是可追溯的语义资料包。" : ""}${focusBlock}`;
 
     const { result } = await this.submitStructured(
       [
@@ -66,6 +70,7 @@ export class FanficCanonImporter extends BaseAgent {
     sourceText: string,
     sourceName: string,
     language: "zh" | "en",
+    theme?: string,
   ): Promise<{ readonly text: string; readonly compiled: boolean }> {
     // prepareWorkerMessages budgets every worker call at
     //   window - defaults.maxTokens - 2048
@@ -91,7 +96,7 @@ export class FanficCanonImporter extends BaseAgent {
       ? [`# ${sourceName} semantic source package`, "", "Compiled from every source chunk for traceable canon extraction.", ""]
       : [`# 《${sourceName}》语义资料包`, "", "逐段读取完整原作素材后编译，用于可追溯正典抽取。", ""];
 
-    let compiledText = await this.compileChunks(sourceText, budget, sourceName, language);
+    let compiledText = await this.compileChunks(sourceText, budget, sourceName, language, 0, theme);
 
     // The concatenated chunk notes can themselves exceed the final consumer's
     // protected-context budget (each chunk is compiled up to the full budget).
@@ -100,7 +105,7 @@ export class FanficCanonImporter extends BaseAgent {
     let pass = 0;
     while (estimateTextTokens([...header, compiledText].join("\n")) > finalBudget && pass < 5) {
       pass += 1;
-      const compressed = await this.compileChunks(compiledText, finalBudget, sourceName, language, pass);
+      const compressed = await this.compileChunks(compiledText, finalBudget, sourceName, language, pass, theme);
       const joined = [...header, compressed].join("\n");
       // Stop if a compression pass made no progress (avoid an endless loop).
       if (estimateTextTokens(joined) >= estimateTextTokens([...header, compiledText].join("\n"))) {
@@ -122,6 +127,7 @@ export class FanficCanonImporter extends BaseAgent {
     sourceName: string,
     language: "zh" | "en",
     pass = 0,
+    theme?: string,
   ): Promise<string> {
     const chunks = splitTextByEstimatedTokens(text, budget);
     if (chunks.length === 1) return chunks[0];
@@ -136,7 +142,7 @@ export class FanficCanonImporter extends BaseAgent {
       while (true) {
         const index = cursor++;
         if (index >= chunks.length) return;
-        const content = await this.compileChunk(chunks[index], sourceName, index, chunks.length, language, pass);
+        const content = await this.compileChunk(chunks[index], sourceName, index, chunks.length, language, pass, theme);
         notes[index] = content;
       }
     };
@@ -151,14 +157,20 @@ export class FanficCanonImporter extends BaseAgent {
     total: number,
     language: "zh" | "en",
     pass: number,
+    theme?: string,
   ): Promise<string> {
+    const themeHint = theme?.trim()
+      ? language === "en"
+        ? ` Prioritize evidence related to this work's focus: ${theme.trim()}. Do not invent facts absent from the source.`
+        : ` 优先保留与本作主题相关的证据：${theme.trim()}。不得据主题发明原作没有的事实。`
+      : "";
     const response = await this.chat(
       [
         {
           role: "system",
           content: language === "en"
-            ? `Compile the source chunk into a concise, traceable Markdown evidence package with the activated import Skill.${pass > 0 ? " This is a compression pass: merge and shorten while preserving all canon-relevant evidence." : ""}`
-            : `按已激活的导入 Skill，把原作片段编译为简洁、可追溯的 Markdown 资料包。${pass > 0 ? " 这是压缩轮：在保留全部正典相关证据的前提下合并并精简。" : ""}`,
+            ? `Compile the source chunk into a concise, traceable Markdown evidence package with the activated import Skill.${pass > 0 ? " This is a compression pass: merge and shorten while preserving all canon-relevant evidence." : ""}${themeHint}`
+            : `按已激活的导入 Skill，把原作片段编译为简洁、可追溯的 Markdown 资料包。${pass > 0 ? " 这是压缩轮：在保留全部正典相关证据的前提下合并并精简。" : ""}${themeHint}`,
         },
         {
           role: "user",

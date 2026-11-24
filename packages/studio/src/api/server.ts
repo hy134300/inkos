@@ -6096,6 +6096,7 @@ export function createStudioServer(initialConfig: ProjectConfig, root: string, o
   app.post("/api/v1/fanfic/init", async (c) => {
     const body = await c.req.json<{
       title: string; sourceText?: string; sourcePath?: string; sourceName?: string;
+      theme?: string;
       mode?: string; genre?: string; platform?: string;
       targetChapters?: number; chapterWordCount?: number; language?: string;
       service?: string; model?: string;
@@ -6181,6 +6182,7 @@ export function createStudioServer(initialConfig: ProjectConfig, root: string, o
           title: bookConfig.title,
           ...(body.sourceText?.trim() ? { sourceText: body.sourceText } : {}),
           ...(body.sourcePath?.trim() ? { sourcePath: body.sourcePath } : {}),
+          ...(body.theme?.trim() ? { theme: body.theme.trim() } : {}),
           sourceName: body.sourceName ?? "source",
           mode: body.mode ?? "canon",
           genre: bookConfig.genre,

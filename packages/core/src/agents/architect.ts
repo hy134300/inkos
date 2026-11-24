@@ -234,15 +234,21 @@ ${reviseFrom.userFeedback || "（无）"}
     fanficMode: FanficMode,
     reviewFeedback?: string,
     options?: {
+      readonly theme?: string;
       readonly onOutline?: (outline: { readonly storyFrame: string; readonly volumeMap: string }) => void | Promise<void>;
     },
   ): Promise<ArchitectOutput> {
     const resolvedLanguage = book.language;
     const reviewFeedbackBlock = this.buildReviewFeedbackBlock(reviewFeedback, resolvedLanguage);
+    const themeBlock = options?.theme?.trim()
+      ? resolvedLanguage === "en"
+        ? `\n\n## Author's theme & focus\n${options.theme.trim()}\nUse this to shape the foundation while preserving canon boundaries.`
+        : `\n\n## 作者指定的主题与重点\n${options.theme.trim()}\n据此组织基础设定，同时保留原著正典边界。`
+      : "";
 
     const canonBlock = resolvedLanguage === "en"
-      ? `\n\n## Fanfic mode: ${fanficMode}\n\n## Source canon\n${fanficCanon}`
-      : `\n\n## 同人模式：${fanficMode}\n\n## 原作正典\n${fanficCanon}`;
+      ? `\n\n## Fanfic mode: ${fanficMode}${themeBlock}\n\n## Source canon\n${fanficCanon}`
+      : `\n\n## 同人模式：${fanficMode}${themeBlock}\n\n## 原作正典\n${fanficCanon}`;
     const systemPrompt = this.buildFoundationProtocol({
       book,
       contextBlock: canonBlock,

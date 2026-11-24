@@ -676,12 +676,12 @@ export class PipelineRunner {
     sourceText: string,
     sourceName: string,
     fanficMode: FanficMode,
-    options: { readonly accept?: boolean } = {},
+    options: { readonly accept?: boolean; readonly theme?: string } = {},
   ): Promise<string> {
     const { FanficCanonImporter } = await import("../agents/fanfic-canon-importer.js");
     const importer = new FanficCanonImporter(this.agentCtxFor("fanfic-canon-importer", bookId));
     const language = await this.resolveBookLanguageById(bookId);
-    const result = await importer.importFromText(sourceText, sourceName, fanficMode, language);
+    const result = await importer.importFromText(sourceText, sourceName, fanficMode, language, options.theme);
 
     const bookDir = this.state.bookDir(bookId);
     const storyDir = join(bookDir, "story");
@@ -703,6 +703,7 @@ export class PipelineRunner {
     sourceText: string,
     sourceName: string,
     fanficMode: FanficMode,
+    theme?: string,
   ): Promise<void> {
     const sourceBefore = await captureWorkSourceState(this.config.projectRoot, book.id);
     const stageLanguage = await this.resolveBookLanguage(book);
@@ -720,16 +721,17 @@ export class PipelineRunner {
         if (fanficCanon.trim()) {
           this.logStage(stageLanguage, { zh: "复用已编译同人正典", en: "reusing compiled fanfic canon" });
         } else {
-          fanficCanon = await this.importFanficCanon(book.id, sourceText, sourceName, fanficMode, { accept: false });
+          fanficCanon = await this.importFanficCanon(book.id, sourceText, sourceName, fanficMode, { accept: false, theme });
         }
       } else {
         this.logStage(stageLanguage, { zh: "导入同人正典", en: "importing fanfic canon" });
-        fanficCanon = await this.importFanficCanon(book.id, sourceText, sourceName, fanficMode, { accept: false });
+        fanficCanon = await this.importFanficCanon(book.id, sourceText, sourceName, fanficMode, { accept: false, theme });
       }
 
       const architect = new ArchitectAgent(this.agentCtxFor("architect", book.id));
       this.logStage(stageLanguage, { zh: "生成同人基础设定", en: "generating fanfic foundation" });
       const foundation = await architect.generateFanficFoundation(book, fanficCanon, fanficMode, undefined, {
+        theme,
         onOutline: (outline) => this.persistDraftFoundationOutline(book.id, outline),
       });
       this.logStage(stageLanguage, { zh: "写入基础设定文件", en: "writing foundation files" });

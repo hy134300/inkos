@@ -49,6 +49,7 @@ export function ImportManager({ nav, theme, t, initialTab }: { nav: Nav; theme: 
 
   // Fanfic state
   const [ffTitle, setFfTitle] = useState("");
+  const [ffTheme, setFfTheme] = useState("");
   const [ffText, setFfText] = useState("");
   const [ffFile, setFfFile] = useState<File | null>(null);
   const [ffMode, setFfMode] = useState("canon");
@@ -195,6 +196,7 @@ export function ImportManager({ nav, theme, t, initialTab }: { nav: Nav; theme: 
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title: ffTitle,
+          ...(ffTheme.trim() ? { theme: ffTheme.trim() } : {}),
           ...(ffFile ? { sourcePath, sourceName } : { sourceText: ffText }),
           mode: ffMode,
           genre: ffGenre, language: ffLang,
@@ -369,6 +371,18 @@ export function ImportManager({ nav, theme, t, initialTab }: { nav: Nav; theme: 
               placeholder={t("import.fanficTitle")}
               className="w-full px-3 py-2 rounded-lg bg-secondary/30 border border-border text-sm"
             />
+            <div className="space-y-1.5">
+              <label className="text-sm text-muted-foreground">
+                {tr("创作主题与重点（可选）— 告诉 AI 这本同人聚焦什么，原作提炼和大纲都会围绕它", "Theme & focus (optional) — tell the AI what this fanfic focuses on; canon extraction and outline will follow it")}
+              </label>
+              <textarea
+                value={ffTheme}
+                onChange={(e) => setFfTheme(e.target.value)}
+                rows={3}
+                placeholder={tr("例如：以韩立×慕沛灵为主，重点挖掘慕沛灵结丹失败、心魔与阵道成长，保留原著人物与边界…", "e.g. Focus on Han Li × Mu Peiling, digging into Mu Peiling's failed core formation, heart demon and array growth, while preserving canon boundaries…")}
+                className="w-full px-3 py-2 rounded-lg bg-secondary/30 border border-border text-sm resize-none"
+              />
+            </div>
             <div className="flex items-center gap-2 flex-wrap">
               <span className="text-sm text-muted-foreground">{tr("创作模型", "Model")}:</span>
               {modelPickerStatus === "ready" ? (

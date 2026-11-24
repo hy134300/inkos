@@ -1292,6 +1292,7 @@ export function createRefreshFanficCanonTool(
 
 const FanficCreateParams = Type.Object({
   title: Type.String({ description: "Fanfiction book title." }),
+  theme: Type.Optional(Type.String({ description: "Author's fanfic theme and focus; guides canon extraction and foundation." })),
   source: Type.Optional(CreationSourceReference),
   sourceText: Type.Optional(Type.String({ description: "Verbatim source supplied by the author. For existing Works use source, never a summary." })),
   sourcePath: Type.Optional(Type.String({ description: "Project-relative uploaded canon/source path." })),
@@ -1339,7 +1340,7 @@ export function createFanficBookTool(
       const activatedSkills = resolveProductionToolSkills(options);
       onUpdate?.(textResult(`Creating fanfiction book "${book.title}" from ${source.name}...`));
       await runPipelineWithAgentContext(pipeline, signal, activatedSkills, () => (
-        pipeline.initFanficBook(book, source.text, source.name, mode)
+        pipeline.initFanficBook(book, source.text, source.name, mode, params.theme?.trim())
       ));
       await mergeWorkMetadata(projectRoot, book.id, { creationKind: "fanfic" });
       return textResult(
