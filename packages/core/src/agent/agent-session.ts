@@ -1432,8 +1432,19 @@ async function runAgentSessionUnlocked(
       )
     ));
     const turnAborted = finalAssistant?.stopReason === "aborted";
-    const completion = currentTurnCompletion(cached);
+    let completion = currentTurnCompletion(cached);
     const turnMessages = agent.state.messages.slice(turnMessageStartIndex);
+    const plainTextAnswer = finalAssistant ? extractTextFromAssistant(finalAssistant).trim() : "";
+    // Some providers ignore tool-choice guidance and answer in plain text
+    // instead of calling `finish_turn`. A grounded, complete textual answer
+    // with no pending operations is still a valid completion: accept it rather
+    // than failing the whole turn. Production actions still require their
+    // explicit tool receipts, so this cannot fake a `delivered` result.
+    if (!completion && !cached.pendingWorkTransition && cached.completedPlayScene === undefined
+        && cached.activeActions === 0 && !cached.deliveryFailed && plainTextAnswer) {
+      completion = { status: "answered", message: plainTextAnswer };
+      cached.turnCompletion = completion;
+    }
     errorMessage = assistantErrorMessage(finalAssistant)
       ?? (turnAborted ? "Agent turn aborted." : undefined)
       ?? (!cached.pendingWorkTransition && cached.completedPlayScene === undefined && !completion
