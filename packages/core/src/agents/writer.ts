@@ -709,17 +709,35 @@ function validateSettlementHookIds<T extends {
     readonly defer: ReadonlyArray<string>;
   };
 }>(value: T, knownHookIds: ReadonlySet<string>): T {
+  // Tolerate cosmetic id mistakes (case/whitespace) by mapping them to the
+  // canonical ledger id before validation; genuine unknown ids still fail.
+  const canonicalById = new Map([...knownHookIds].map((id) => [id.trim().toLowerCase(), id]));
+  const normalize = (id: string): string => canonicalById.get(id.trim().toLowerCase()) ?? id;
+  const normalized = {
+    ...value,
+    hookOps: {
+      ...value.hookOps,
+      upsert: value.hookOps.upsert.map((hook) => ({ ...hook, hookId: normalize(hook.hookId) })),
+      mention: value.hookOps.mention.map(normalize),
+      resolve: value.hookOps.resolve.map(normalize),
+      defer: value.hookOps.defer.map(normalize),
+    },
+  };
   const submittedIds = [
-    ...value.hookOps.upsert.map((hook) => hook.hookId),
-    ...value.hookOps.mention,
-    ...value.hookOps.resolve,
-    ...value.hookOps.defer,
+    ...normalized.hookOps.upsert.map((hook) => hook.hookId),
+    ...normalized.hookOps.mention,
+    ...normalized.hookOps.resolve,
+    ...normalized.hookOps.defer,
   ];
   const unknown = [...new Set(submittedIds.filter((hookId) => !knownHookIds.has(hookId)))];
   if (unknown.length > 0) {
+    // Include the actual ledger ids in the correction feedback: a model that
+    // invented an id cannot fix the call without being told which ids exist.
     throw new Error(
-      `Unknown hook id(s): ${unknown.join(", ")}. Existing hook operations accept only ids from the supplied ledger; submit a newHookCandidate for a new promise.`,
+      `Unknown hook id(s): ${unknown.join(", ")}. ` +
+      `Use ONLY these existing hook ids for upsert/mention/resolve/defer: ${[...knownHookIds].sort().join(", ") || "(none)"}. ` +
+      `If the chapter establishes a new unresolved promise, submit it through newHookCandidate instead of hookOps.`,
     );
   }
-  return value;
+  return normalized;
 }

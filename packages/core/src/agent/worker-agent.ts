@@ -357,6 +357,9 @@ export async function runWorkerAgentTool<TParameters extends TSchema>(
         submitted = validate ? await validate(parsed) : parsed;
       } catch(error) {
         lastValidationError=error instanceof Error?error:new Error(String(error));
+        // Surface the actual validation message in the server log: without it,
+        // a rejected tool result is invisible when diagnosing failed chapters.
+        console.error(`[worker] ${resultTool.name} result invalid: ${lastValidationError.message}`);
         recordExecutionEvidence('worker-result-invalid',{
           code:lastValidationError.code??'WORKER_DOMAIN_INVALID',
           resultTool:resultTool.name,
