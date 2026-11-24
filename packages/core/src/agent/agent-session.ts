@@ -1186,7 +1186,10 @@ async function runAgentSessionUnlocked(
         const streamOptions = {
           ...options,
           maxTokens: agentOutputBudget(streamModel),
-          toolChoice: "required" as const,
+          // Do NOT force a tool call on every turn. After a tool result the
+          // model must be free to answer in plain text; forcing `required`
+          // makes it emit prose without a tool call and fail the transport
+          // contract. pi-agent already decides when a tool is needed.
         };
         return config.stream === false
           ? guardedPiNonStreaming(streamModel, context, streamOptions, config.proxyUrl)
