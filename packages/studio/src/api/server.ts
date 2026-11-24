@@ -1011,6 +1011,57 @@ function formatAgentFailure(
   };
 }
 
+/** Build a deterministic recovery hint from tool receipts in a failed turn.
+ *  Reads are audited but not reported as progress; only successful mutations
+ *  (hostExecution.risk !== "read") count as completed work. This tells the
+ *  author what actually landed and what the safe next step is.
+ */
+export function buildFailureRecoveryHint(messages: readonly unknown[], lang: StudioLanguage): string {
+  const calls = new Map<string, { name: string; args: Record<string, unknown> }>();
+  const writes: string[] = [];
+  const errors: string[] = [];
+  let reads = 0;
+  for (const raw of messages) {
+    if (!raw || typeof raw !== "object") continue;
+    const msg = raw as { role?: string; content?: unknown; details?: unknown; isError?: boolean; toolCallId?: string };
+    if (msg.role === "assistant" && Array.isArray(msg.content)) {
+      for (const part of msg.content) {
+        if (part && typeof part === "object" && (part as { type?: string }).type === "toolCall") {
+          const call = part as { id?: string; name?: string; arguments?: unknown };
+          if (call.id && call.name) {
+            calls.set(call.id, { name: call.name, args: (call.arguments && typeof call.arguments === "object" ? call.arguments : {}) as Record<string, unknown> });
+          }
+        }
+      }
+    }
+    if (msg.role !== "toolResult") continue;
+    const call = msg.toolCallId ? calls.get(msg.toolCallId) : undefined;
+    const details = (msg.details ?? ((msg as unknown as { message?: { details?: unknown } }).message?.details)) as { kind?: unknown; hostExecution?: { risk?: string; status?: string; artifacts?: readonly unknown[] } } | undefined;
+    const exec = details?.hostExecution;
+    if (exec?.risk === "read") { reads += 1; continue; }
+    if (msg.isError) { errors.push(call?.name ?? "tool"); continue; }
+    if (exec && exec.status === "success") {
+      const count = exec.artifacts?.length ?? 0;
+      const label = call?.name ?? (typeof details?.kind === "string" ? details.kind : "write");
+      writes.push(`${label}${count ? ` (${count} artifact${count === 1 ? "" : "s"})` : ""}`);
+    }
+  }
+  if (!writes.length && !errors.length && !reads) return "";
+  const done = writes.length ? [...new Set(writes)].join("、") : (lang === "zh" ? "无已确认写入" : "no confirmed writes");
+  const failed = errors.length ? [...new Set(errors)].join("、") : (lang === "zh" ? "无" : "none");
+  const next = writes.length
+    ? (lang === "zh"
+        ? "这些改动已落盘且不会自动回滚。下一步请按当前已保存的设定/章节状态给出明确指令，例如“基于当前大纲重写第1章”或“从当前状态继续下一章”；不要直接重试上一条模糊指令。"
+        : "These changes are saved and are not rolled back. Next, give an explicit instruction based on the saved state, e.g. 'rewrite chapter 1 from the current outline' or 'continue the next chapter from current state'; do not blindly retry the vague failed request.")
+    : (lang === "zh"
+        ? "本轮没有确认写入。可以安全重试上一条指令；若模型反复空输出，请拆小任务或换模型。"
+        : "No confirmed writes occurred. You can safely retry; if the model keeps returning empty output, split the task or switch models.");
+  const header = lang === "zh"
+    ? `\n\n[失败恢复提示] 本轮读取 ${reads} 次；已确认写入：${done}；失败工具：${failed}。\n${next}`
+    : `\n\n[Recovery] Reads: ${reads}; confirmed writes: ${done}; failed tools: ${failed}.\n${next}`;
+  return header;
+}
+
 function formatAgentActionFailure(
   error: unknown,
   lang: StudioLanguage,
@@ -5447,9 +5498,11 @@ export function createStudioServer(initialConfig: ProjectConfig, root: string, o
             await finalizeCreatedBook();
           }
           const failure = formatAgentFailure(result.errorMessage, language, "model");
+          const recoveryHint = buildFailureRecoveryHint(result.messages, language);
+          const recoveryMessage = `${failure.message}${recoveryHint}`;
           return c.json({
-            error: { code: failure.code, message: failure.message },
-            response: failure.message,
+            error: { code: failure.code, message: recoveryMessage, recoveryHint: recoveryHint || undefined },
+            response: recoveryMessage,
             session: workSessionResponseMetadata(bookSession),
             details: { toolExecutions: collectedToolExecs },
           }, failure.status);
