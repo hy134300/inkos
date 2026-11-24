@@ -62,6 +62,21 @@ export const RequestFailedEventSchema = BaseEventSchema.extend({
   error: z.string(),
 });
 
+const PendingToolCallSchema = z.object({
+  toolCallId: z.string().min(1),
+  toolName: z.string().min(1),
+  status: z.enum(["unanswered", "unknown", "completed-elsewhere"]),
+}).strict();
+
+export const RequestContinuationEventSchema = BaseEventSchema.extend({
+  type: z.literal("request_continuation"),
+  requestId: z.string().min(1),
+  originalInstruction: z.string(),
+  messages: z.array(z.unknown()),
+  pendingToolCalls: z.array(PendingToolCallSchema),
+  recoveryFacts: z.string(),
+}).strict();
+
 export const MessageEventSchema = BaseEventSchema.extend({
   type: z.literal("message"),
   requestId: z.string().min(1),
@@ -94,6 +109,7 @@ export const TranscriptEventSchema = z.discriminatedUnion("type", [
   RequestStartedEventSchema,
   RequestCommittedEventSchema,
   RequestFailedEventSchema,
+  RequestContinuationEventSchema,
   MessageEventSchema,
 ]);
 
@@ -102,5 +118,6 @@ export type SessionMetadataUpdatedEvent = z.infer<typeof SessionMetadataUpdatedE
 export type RequestStartedEvent = z.infer<typeof RequestStartedEventSchema>;
 export type RequestCommittedEvent = z.infer<typeof RequestCommittedEventSchema>;
 export type RequestFailedEvent = z.infer<typeof RequestFailedEventSchema>;
+export type RequestContinuationEvent = z.infer<typeof RequestContinuationEventSchema>;
 export type MessageEvent = z.infer<typeof MessageEventSchema>;
 export type TranscriptEvent = z.infer<typeof TranscriptEventSchema>;

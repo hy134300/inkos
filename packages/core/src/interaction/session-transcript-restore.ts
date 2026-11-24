@@ -389,6 +389,53 @@ export async function restoreAgentMessagesFromTranscript(
   );
 }
 
+/** Load the latest persisted failed-turn continuation and repair its transcript
+ * so every assistant tool call has a corresponding tool result before it is
+ * sent back to a model. Returns null when no continuation is available.
+ */
+export async function restoreContinuationFromTranscript(
+  projectRoot: string,
+  sessionId: string,
+  requestId?: string,
+): Promise<{ requestId: string; originalInstruction: string; recoveryFacts: string; messages: AgentMessage[] } | null> {
+  const events = await readTranscriptEvents(projectRoot, sessionId);
+  const candidate = [...events].reverse().find((event) => (
+    event.type === "request_continuation" && (!requestId || event.requestId === requestId)
+  ));
+  if (!candidate || candidate.type !== "request_continuation") return null;
+  const messages = candidate.messages.map((message) => sanitizeRestoredSkillMessage(message as AgentMessage));
+  const repaired = repairPendingToolCalls(messages, candidate.pendingToolCalls);
+  return {
+    requestId: candidate.requestId,
+    originalInstruction: candidate.originalInstruction,
+    recoveryFacts: candidate.recoveryFacts,
+    messages: cleanRestoredAgentMessages(repaired),
+  };
+}
+
+function repairPendingToolCalls(
+  messages: AgentMessage[],
+  pending: ReadonlyArray<{ toolCallId: string; toolName: string; status: "unanswered" | "unknown" | "completed-elsewhere" }>,
+): AgentMessage[] {
+  if (!pending.length) return messages;
+  const facts = pending.map((call) => {
+    const reason = call.status === "unknown"
+      ? "Its result is unknown; do not repeat it. Check the saved state first."
+      : call.status === "completed-elsewhere"
+        ? "It was completed outside this run; do not repeat it."
+        : "No result came back for this call before the turn stopped.";
+    return `- ${call.toolName} (${call.toolCallId}): ${reason}`;
+  }).join("\n");
+  const note = {
+    role: "system",
+    content: `[Pending tool calls from the interrupted turn]\nThese calls had no determinate result. Treat them as not completed, do not duplicate side effects blindly, and verify saved state before continuing.\n${facts}`,
+    timestamp: Date.now(),
+  } as unknown as AgentMessage;
+  // Insert immediately after the last message so the model sees the note before
+  // the next user instruction is appended by runAgentSession.
+  return [...messages, note];
+}
+
 function sanitizeRestoredSkillMessage(message: AgentMessage): AgentMessage {
   if (!isObject(message)) return message;
   if (message.role === "toolResult" && message.toolName === "use_skill") {

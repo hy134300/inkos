@@ -48,6 +48,7 @@ import {
   runWorkerAgent,
   appendActivatedSkillGuidance,
   hydrateActivatedSkillGuidance,
+  restoreContinuationFromTranscript,
   buildExportArtifact,
   ChapterExportSourceError,
   DetectionConfigSchema,
@@ -4712,6 +4713,7 @@ export function createStudioServer(initialConfig: ProjectConfig, root: string, o
       playMode: reqPlayMode,
       model: reqModel,
       service: reqService,
+      retryOfRequestId: reqRetryOfRequestId,
     } = await c.req.json<{
       instruction: string;
       activeBookId?: string;
@@ -4729,6 +4731,7 @@ export function createStudioServer(initialConfig: ProjectConfig, root: string, o
       playMode?: string;
       model?: string;
       service?: string;
+      retryOfRequestId?: string;
     }>();
     const sessionId = reqSessionId;
     if (!instruction?.trim()) {
@@ -5307,9 +5310,31 @@ export function createStudioServer(initialConfig: ProjectConfig, root: string, o
       // 同时传 suppressProductionTools 在 host 层剔除会修改书籍/产物的
       // 生产工具（提示词只是软约束）。
       const backgroundTask = await findActiveRunningTask(bookSession.sessionId);
+      const normalizedInstruction = instruction.trim().toLowerCase();
+      const wantsContinuation = typeof reqRetryOfRequestId === "string"
+        || normalizedInstruction === "继续"
+        || normalizedInstruction === "continue"
+        || normalizedInstruction === "carry on";
+      const restoredContinuation = wantsContinuation
+        ? await restoreContinuationFromTranscript(
+            root,
+            bookSession.sessionId,
+            typeof reqRetryOfRequestId === "string" ? reqRetryOfRequestId : undefined,
+          )
+        : null;
       const result = await runAgentSession(
         {
           signal: chatRequest?.controller.signal,
+          ...(restoredContinuation
+            ? {
+                resumeContinuation: {
+                  requestId: restoredContinuation.requestId,
+                  originalInstruction: restoredContinuation.originalInstruction,
+                  recoveryFacts: restoredContinuation.recoveryFacts,
+                  messages: restoredContinuation.messages,
+                },
+              }
+            : {}),
           baselineWork: chatRequest?.snapshot.baselineWork,
           onWorkTransition: publishExecutionTarget,
           model,

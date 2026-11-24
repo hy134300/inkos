@@ -7,6 +7,7 @@ import {
   adaptRestoredAgentMessagesForModel,
   deriveBookSessionFromTranscript,
   restoreAgentMessagesFromTranscript,
+  restoreContinuationFromTranscript,
   TOOL_RESULT_BRIDGE_TEXT,
 } from "../interaction/session-transcript-restore.js";
 import type { MessageEvent } from "../interaction/session-transcript-schema.js";
@@ -29,6 +30,37 @@ describe("session transcript restore", () => {
 
   afterEach(async () => {
     await rm(projectRoot, { recursive: true, force: true });
+  });
+
+  it("restores a failed-turn continuation and repairs pending tool calls", async () => {
+    await appendTranscriptEvent(projectRoot, {
+      type: "request_continuation",
+      version: 1,
+      sessionId: "cont",
+      requestId: "rc1",
+      seq: 1,
+      timestamp: 1,
+      originalInstruction: "继续",
+      recoveryFacts: "confirmed writes: foundation_revised",
+      messages: [{
+        role: "assistant",
+        api: "openai-completions",
+        provider: "openai",
+        model: "test",
+        content: [{ type: "toolCall", id: "t1", name: "workspace__read", arguments: {} }],
+        usage,
+        stopReason: "toolUse",
+        timestamp: 1,
+      }],
+      pendingToolCalls: [{ toolCallId: "t1", toolName: "workspace__read", status: "unanswered" }],
+    });
+
+    const continuation = await restoreContinuationFromTranscript(projectRoot, "cont");
+    expect(continuation).not.toBeNull();
+    expect(continuation?.requestId).toBe("rc1");
+    expect(continuation?.recoveryFacts).toContain("foundation_revised");
+    const texts = (continuation?.messages ?? []).flatMap((m: any) => typeof m.content === "string" ? [m.content] : []);
+    expect(texts.some((text: string) => text.includes("Pending tool calls"))).toBe(true);
   });
 
   it("只恢复已 committed request 内的 message", async () => {

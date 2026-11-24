@@ -273,10 +273,12 @@ export {
   committedMessageEvents,
   deriveBookSessionFromTranscript,
   restoreAgentMessagesFromTranscript,
+  restoreContinuationFromTranscript,
 } from "./interaction/session-transcript-restore.js";
 export {
   MessageEventSchema,
   RequestCommittedEventSchema,
+  RequestContinuationEventSchema,
   RequestFailedEventSchema,
   RequestStartedEventSchema,
   SessionCreatedEventSchema,
@@ -287,6 +289,7 @@ export type {
   TranscriptEvent,
   MessageEvent,
   RequestCommittedEvent,
+  RequestContinuationEvent,
   RequestFailedEvent,
   RequestStartedEvent,
   SessionCreatedEvent,

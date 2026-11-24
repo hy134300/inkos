@@ -146,6 +146,13 @@ export interface AgentSessionConfig {
    * Changing this value evicts the cached Agent so the tool table stays current.
    */
   suppressProductionTools?: boolean;
+  /** Resume from a persisted failed-turn continuation instead of plain transcript history. */
+  resumeContinuation?: {
+    readonly requestId: string;
+    readonly originalInstruction: string;
+    readonly recoveryFacts: string;
+    readonly messages: readonly AgentMessage[];
+  };
   /** Resume Pi after a host-confirmed capability completed outside the loop. */
   resumeAction?: {
     /** The original action is already in the transcript; this pair is model context only. */
@@ -865,6 +872,27 @@ function currentTurnCompletion(cached: CachedAgent): TurnCompletion | undefined 
   return cached.turnCompletion;
 }
 
+function pendingToolCallsFromMessages(messages: readonly AgentMessage[]): Array<{ toolCallId: string; toolName: string; status: "unanswered" | "unknown" | "completed-elsewhere" }> {
+  const answered = new Set<string>();
+  const pending = new Map<string, { toolCallId: string; toolName: string; status: "unanswered" | "unknown" | "completed-elsewhere" }>();
+  for (const message of messages) {
+    const raw = message as unknown as { role?: unknown; content?: unknown; toolCallId?: unknown };
+    if (raw.role === "assistant" && Array.isArray(raw.content)) {
+      for (const part of raw.content) {
+        if (part && typeof part === "object" && (part as { type?: unknown }).type === "toolCall") {
+          const id = (part as { id?: unknown }).id;
+          const name = (part as { name?: unknown }).name;
+          if (typeof id === "string" && id && typeof name === "string" && name) {
+            pending.set(id, { toolCallId: id, toolName: name, status: "unanswered" });
+          }
+        }
+      }
+    }
+    if (raw.role === "toolResult" && typeof raw.toolCallId === "string") answered.add(raw.toolCallId);
+  }
+  return [...pending.values()].filter((call) => !answered.has(call.toolCallId));
+}
+
 async function runAgentSessionUnlocked(
   config: AgentSessionConfig,
   userMessage: string,
@@ -968,7 +996,9 @@ async function runAgentSessionUnlocked(
   }
 
   if (!cached) {
-    const restoredHistory = await restoreAgentMessagesFromTranscript(projectRoot, sessionId, sessionKind);
+    const restoredHistory = config.resumeContinuation
+      ? [...config.resumeContinuation.messages]
+      : await restoreAgentMessagesFromTranscript(projectRoot, sessionId, sessionKind);
     const restoredMessages = adaptRestoredAgentMessagesForModel(restoredHistory, model);
     const restoredSystemContext = restoredMessages.flatMap((message) => {
       const raw = message as unknown as { readonly role?: unknown; readonly content?: unknown };
@@ -1121,9 +1151,13 @@ async function runAgentSessionUnlocked(
         : {}),
       ...(config.resumeAction ? { resumeAfterAction: true } : {}),
     });
-    const restoredContextBlock = restoredSystemContext.length > 0
-      ? `\n\n## Restored committed context\n${restoredSystemContext.join("\n\n")}`
+    const continuationContextBlock = config.resumeContinuation
+      ? `\n\n## Interrupted turn continuation\nResuming failed request ${config.resumeContinuation.requestId}. Original instruction: ${config.resumeContinuation.originalInstruction}\nRecovery facts:\n${config.resumeContinuation.recoveryFacts}\nContinue from saved state; do not repeat confirmed successful writes or duplicate side effects with unknown outcomes.`
       : "";
+    const restoredContextBlock = [
+      restoredSystemContext.length > 0 ? `\n\n## Restored committed context\n${restoredSystemContext.join("\n\n")}` : "",
+      continuationContextBlock,
+    ].join("");
     const agent = new Agent({
       beforeToolCall: preserveToolArgumentTypes,
       initialState: {
@@ -1467,6 +1501,21 @@ async function runAgentSessionUnlocked(
       }));
       cached.lastCommittedSeq = committed.seq;
       const progress = executionProgress(agent.state.messages, 6000);
+      // Persist an executable continuation snapshot: the full in-memory messages
+      // plus any tool calls that never received results. A trusted host can use
+      // this to resume exactly instead of replaying the original user wording.
+      await appendAgentTranscriptEvent(projectRoot, sessionId, (seq) => ({
+        type: "request_continuation",
+        version: 1,
+        sessionId,
+        requestId,
+        seq,
+        timestamp: Date.now(),
+        originalInstruction: userMessage,
+        messages: agent.state.messages as unknown as unknown[],
+        pendingToolCalls: pendingToolCallsFromMessages(agent.state.messages),
+        recoveryFacts: progress || failedError,
+      }));
       if (progress) {
         await appendAgentTranscriptEvent(projectRoot, sessionId, (seq) => ({
           type: "message",
