@@ -32,17 +32,19 @@ export function roleFromPath(path: string): RoleRef | null {
 export const FOUNDATION_FILE_LABELS: Record<string, string> = {
   "outline/story_frame.md": "故事基石",
   "outline/volume_map.md": "卷纲规划",
+  "book_rules.md": "叙事规则",
+  "fanfic_canon.md": "同人正典",
   "current_state.md": "当前状态",
   "pending_hooks.md": "伏笔池",
-  "book_rules.md": "叙事规则",
 };
 
 const FOUNDATION_FILE_LABELS_EN: Record<string, string> = {
   "outline/story_frame.md": "Story Foundation",
   "outline/volume_map.md": "Volume Map",
+  "book_rules.md": "Narrative Rules",
+  "fanfic_canon.md": "Fanfic Canon",
   "current_state.md": "Current State",
   "pending_hooks.md": "Hook Pool",
-  "book_rules.md": "Narrative Rules",
 };
 
 // Language-aware display label for a foundation truth file. Returns undefined
@@ -109,6 +111,7 @@ export const FOUNDATION_FILE_ORDER: ReadonlyArray<string> = [
   "outline/story_frame.md",
   "outline/volume_map.md",
   "book_rules.md",
+  "fanfic_canon.md",
   "current_state.md",
   "pending_hooks.md",
 ];
