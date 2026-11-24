@@ -1,3 +1,4 @@
+import { structuredOutputBudget } from "../llm/provider.js";
 import { writeFile, mkdir } from "node:fs/promises";
 import { join } from "node:path";
 import { BaseAgent } from "./base.js";
@@ -150,7 +151,7 @@ export class PlannerAgent extends BaseAgent {
         description: "Submit the complete semantic chapter plan for host persistence.",
         parameters: ChapterMemoToolSchema,
       },
-      { temperature: 0.7, maxTokens: Math.min(8192, this.ctx.client.defaults.maxTokens) },
+      { temperature: 0.7, maxTokens: structuredOutputBudget(this.ctx.client) },
     );
     return ChapterMemoSchema.parse({
       chapter: input.chapterNumber,

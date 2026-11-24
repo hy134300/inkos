@@ -1,3 +1,4 @@
+import { structuredOutputBudget } from "../llm/provider.js";
 import { BaseAgent } from "./base.js";
 import type { ContextPackage } from "../models/input-governance.js";
 import { renderNarrativeSelectedContext } from "../utils/narrative-control.js";
@@ -86,7 +87,7 @@ export class ContinuityAuditor extends BaseAgent {
           ? "Submit evidence-backed observations only."
           : "只提交有证据的审稿观察。",
       },
-      { temperature: options.temperature ?? 0.3, maxTokens: Math.min(4096, this.ctx.client.defaults.maxTokens),categoryRequired:!!comparison,
+      { temperature: options.temperature ?? 0.3, maxTokens: structuredOutputBudget(this.ctx.client),categoryRequired:!!comparison,
         validateObservations:observations=>{
           for(const observation of observations.filter(item=>item.category==='scope'&&item.assessment==='issue')){
             const ids=new Set(observation.sourceRefs.map(ref=>ref.sourceId));

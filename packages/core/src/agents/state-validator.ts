@@ -1,3 +1,4 @@
+import { structuredOutputBudget } from "../llm/provider.js";
 import { BaseAgent } from "./base.js";
 import { StateValidationToolSchema } from "./state-validation-tool.js";
 import type { Observation } from "../models/observation.js";
@@ -83,7 +84,7 @@ ${chapterContent}`;
             return result;
           },
         },
-        { temperature: 0.1, maxTokens: Math.min(8192, this.ctx.client.defaults.maxTokens) },
+        { temperature: 0.1, maxTokens: structuredOutputBudget(this.ctx.client) },
       );
       return {
         observations: result.reportMarkdown.trim() ? [{code:result.reconciliationRequired ? "state-reconciliation" : "state-projection-review",summary:result.reportMarkdown.trim(),evidence:[]}] : [],

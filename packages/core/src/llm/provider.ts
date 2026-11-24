@@ -537,6 +537,21 @@ export function __resetFixedTemperatureWarnings(): void {
   warnedFixedTemperatureModels.clear();
 }
 
+/**
+ * Output budget for structured workers that must emit a tool call. Reasoning
+ * models may spend thousands of tokens on hidden thinking before the tool call,
+ * so a fixed 4096/8192 cap can trigger `length` with no visible result. Give
+ * these workers the full configured model output budget, bounded by half the
+ * context window so the prompt still fits.
+ */
+export function structuredOutputBudget(client: LLMClient): number {
+  const floor = 8_192;
+  const contextHalf = Number.isFinite(client._piModel?.contextWindow)
+    ? Math.max(floor, Math.floor(client._piModel!.contextWindow! / 2))
+    : floor;
+  return Math.min(Math.max(client.defaults.maxTokens, floor), contextHalf);
+}
+
 export function estimateTextTokens(text: string): number {
   if (!text) return 0;
   const cjk = text.match(/[\u3400-\u9fff]/g)?.length ?? 0;

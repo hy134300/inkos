@@ -1,3 +1,4 @@
+import { structuredOutputBudget } from "../llm/provider.js";
 import { BaseAgent } from "./base.js";
 import {renderChapterDocument} from '../utils/chapter-document.js';
 import type { BookConfig } from "../models/book.js";
@@ -324,7 +325,7 @@ export class WriterAgent extends BaseAgent {
         parameters: createSettlementToolSchema(params.allowNewHooks),
         validate: (value) => validateSettlementHookIds(value, knownHookIds),
       },
-      { temperature: 0.3, maxTokens: Math.min(16384, this.ctx.client.defaults.maxTokens) },
+      { temperature: 0.3, maxTokens: structuredOutputBudget(this.ctx.client) },
     );
     const runtimeStateDelta = RuntimeStateDeltaSchema.parse({
       chapter: params.chapterNumber,
