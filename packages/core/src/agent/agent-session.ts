@@ -602,7 +602,14 @@ export async function compileHarnessContextText(input: {
   readonly maxTokens: number;
   readonly signal?: AbortSignal;
 }): Promise<string> {
-  const outputBudget = Math.min(input.maxTokens, 4096);
+  // Some OpenAI-compatible reasoning models spend a large share of max_tokens
+  // on hidden thinking before emitting visible text. A 4096 cap used to leave
+  // them with an empty content body, which broke session compaction. Give the
+  // compiler a much larger ceiling when the model supports it.
+  const modelOutputCeiling = Number.isFinite(input.model.maxTokens) && input.model.maxTokens > 0
+    ? input.model.maxTokens
+    : 16_384;
+  const outputBudget = Math.min(input.maxTokens, Math.max(4096, modelOutputCeiling));
   const contextWindow = Number.isFinite(input.model.contextWindow) && input.model.contextWindow > 0
     ? input.model.contextWindow : 32_000;
   const inputBudget = Math.max(256, contextWindow - outputBudget - estimateTextTokens(input.systemPrompt) - 2048);
@@ -616,20 +623,31 @@ export async function compileHarnessContextText(input: {
   }
   // Compilation consumes quoted history as data. It is a single Pi model call,
   // not an action loop that may execute or retry tools found in that history.
-  const context: PiContext = {systemPrompt:input.systemPrompt,tools:[],messages:[
-    {role:'user',content:input.userPrompt,timestamp:Date.now()},
-  ]};
-  const options = {maxTokens:outputBudget,signal:input.signal,toolChoice:'none' as const,
-    apiKey:input.apiKey ?? getEnvApiKey(input.model.provider)};
-  const stream = input.stream ? guardedPiStream(input.model,context,options)
-    : guardedPiNonStreaming(input.model,context,options,input.proxyUrl);
-  const final = await stream.result();
+  // Reasoning models can spend the entire output budget on hidden thinking and
+  // return no text; in that case retry once with a larger output budget.
+  const run = async (budget: number) => {
+    const context: PiContext = {systemPrompt:input.systemPrompt,tools:[],messages:[
+      {role:'user',content:input.userPrompt,timestamp:Date.now()},
+    ]};
+    const options = {maxTokens:budget,signal:input.signal,toolChoice:'none' as const,
+      apiKey:input.apiKey ?? getEnvApiKey(input.model.provider)};
+    const stream = input.stream ? guardedPiStream(input.model,context,options)
+      : guardedPiNonStreaming(input.model,context,options,input.proxyUrl);
+    return stream.result();
+  };
+  let final = await run(outputBudget);
+  const textOf = (message: Awaited<ReturnType<typeof run>>) => message.content
+    .filter((part):part is Extract<(typeof part),{type:'text'}>=>part.type==='text')
+    .map(part=>part.text).join('').trim();
+  if (!textOf(final) && final.stopReason === 'length') {
+    // Thinking exhausted the output budget — retry with a doubled ceiling.
+    final = await run(Math.min(Math.max(outputBudget * 3, 12_288), 32_768));
+  }
   if(final.stopReason==='error'||final.stopReason==='aborted')throw new Error(final.errorMessage??'Context compilation failed');
   if(final.stopReason==='toolUse'||final.content.some(part=>part.type==='toolCall')) {
     throw Object.assign(new Error('Context compilation returned an unexpected tool call'),{code:'CONTEXT_UNEXPECTED_TOOL_CALL'});
   }
-  const text = final.content.filter((part):part is Extract<(typeof final.content)[number],{type:'text'}>=>part.type==='text')
-    .map(part=>part.text).join('').trim();
+  const text = textOf(final);
   if(!text)throw Object.assign(new Error('Context compilation returned no text'),{code:'CONTEXT_EMPTY_RESULT'});
   return text;
 }
