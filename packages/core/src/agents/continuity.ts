@@ -39,8 +39,8 @@ export class ContinuityAuditor extends BaseAgent {
   ): Promise<AuditResult> {
     const isEnglish = options.language === "en";
     const systemPrompt = isEnglish
-      ? "Audit this chapter against the activated review Skill and supplied governed context. Identify each observation with a code, assessment and exact numbered source lines. Do not estimate length; the host computes it. Return a concise overall summary. An empty observations array is valid."
-      : "按已激活的审稿 Skill 和权威上下文审查本章。为每条观察提交代码、判断以及所给编号原文中的确切证据行。不估算字数，字数由宿主计算。提交简短总结，observations 为空是合法结果。";
+      ? "Audit this chapter against the activated review Skill and supplied governed context. Identify each observation with a code, assessment and exact numbered source lines. Do not estimate length; the host computes it. Return a concise overall summary. An empty observations array is valid. Prose-style standards must come from a style guide inside the governed context; when none exists, do not invent a style standard, and never recommend adding conversational connectives or filler words as an improvement — those are defects, not fixes."
+      : "按已激活的审稿 Skill 和权威上下文审查本章。为每条观察提交代码、判断以及所给编号原文中的确切证据行。不估算字数，字数由宿主计算。提交简短总结，observations 为空是合法结果。文风标准只能取自权威上下文中的文风指南；若不存在，不得自行发明风格标准，也不得把口语连接词、填充词当作改进建议——它们是病害，不是修复。";
     const governedContext = renderNarrativeSelectedContext(
       options.contextPackage.selectedContext,
       options.language,
