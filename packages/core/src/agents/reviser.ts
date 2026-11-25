@@ -1,4 +1,5 @@
 import { BaseAgent } from "./base.js";
+import { structuredOutputBudget } from "../llm/provider.js";
 import type { LengthSpec } from "../models/length-governance.js";
 import type { Observation } from "../models/observation.js";
 import type { ContextPackage } from "../models/input-governance.js";
@@ -73,7 +74,12 @@ export class ReviserAgent extends BaseAgent {
       { role: "system" as const, content: systemPrompt },
       { role: "user" as const, content: userPrompt },
     ];
-    const outputBudget = Math.min(this.ctx.client.defaults.maxTokens, Math.max(8192, Math.ceil((options.lengthSpec?.target ?? chapterContent.length) * 4) + 8192));
+    // Reasoning models spend part of max_tokens on hidden thinking before any
+    // prose, so the budget must cover the chapter AND that overhead. Cap at half
+    // the context window to keep the prompt readable.
+    const neededOutput = Math.max(8192, Math.ceil((options.lengthSpec?.target ?? chapterContent.length) * 4) + 8192);
+    const contextCap = Math.max(8192, Math.floor((this.ctx.client._piModel?.contextWindow ?? 128_000) * 0.5));
+    const outputBudget = Math.min(contextCap, Math.max(neededOutput, structuredOutputBudget(this.ctx.client)));
     const output = mode === "spot-fix" || options.targetText!==undefined
       ? await this.submitSpotFix(messages, chapterContent, outputBudget, options.lengthSpec,options.targetText,options.onCandidate)
       : await this.submitRewrite(messages, outputBudget, options.lengthSpec,body);
