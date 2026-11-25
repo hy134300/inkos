@@ -6017,15 +6017,17 @@ export function createStudioServer(initialConfig: ProjectConfig, root: string, o
   // --- Style Analyze ---
 
   app.post("/api/v1/style/analyze", async (c) => {
-    const { text, sourceName, language } = await c.req.json<{ text: string; sourceName: string; language?: "zh" | "en" }>();
+    const { text, sourceName, language, model: requestedModel, service: requestedService } =
+      await c.req.json<{ text: string; sourceName: string; language?: "zh" | "en"; model?: string; service?: string }>();
     if (!text?.trim()) return c.json({ error: "text is required" }, 400);
 
     try {
       const { compileStyleGuide } = await import("@actalk/inkos-core");
       const config = await loadCurrentProjectConfig();
+      const analyzedModel = requestedModel?.trim() || config.llm.model;
       const guide = await compileStyleGuide({
-        client: createLLMClient(config.llm),
-        model: config.llm.model,
+        client: createLLMClient({ ...config.llm, ...(requestedService?.trim() ? { service: requestedService.trim() } : {}), model: analyzedModel }),
+        model: analyzedModel,
         projectRoot: root,
         referenceText: text,
         sourceName: sourceName ?? "unknown",
@@ -6041,12 +6043,16 @@ export function createStudioServer(initialConfig: ProjectConfig, root: string, o
 
   app.post("/api/v1/books/:id/style/import", async (c) => {
     const id = c.req.param("id");
-    const { text, sourceName } = await c.req.json<{ text: string; sourceName: string }>();
+    const { text, sourceName, model: requestedModel, service: requestedService } =
+      await c.req.json<{ text: string; sourceName: string; model?: string; service?: string }>();
     if (!text?.trim()) return c.json({ error: "text is required" }, 400);
 
     broadcast("style:start", { bookId: id });
     try {
-      const pipeline = new PipelineRunner(await buildPipelineConfig({ bookIdForSettings: id }));
+      const pipeline = new PipelineRunner(await buildPipelineConfig({
+        bookIdForSettings: id,
+        ...(requestedModel?.trim() ? { model: requestedModel.trim() } : {}),
+      }));
       const skills = await resolveStudioProfileSkills(root, "longform-novel", {
         extraSkillIds: ["inkos-long-story-analysis", "inkos-imitation-writing"],
       });

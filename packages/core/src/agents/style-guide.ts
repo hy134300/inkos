@@ -48,8 +48,8 @@ export async function compileStyleGuide(input: {
       {
         role: "system",
         content: language === "en"
-          ? "Read this passage from the reference work and list only observable style facts. Cover narrative distance, sentence and paragraph rhythm, how time advances, density of concrete everyday detail, dialogue ratio and function, narrator asides, metaphor type, and any hard bans you can justify. Cite one short verbatim example per point. Output bullets, no analysis of plot or theme."
-          : "只读这一段参考正文，列出可观察的文风事实：叙述距离、句子与段落节奏、时间如何推进、具体世俗细节密度、对白比例与功能、说书人插话、比喻类型、以及有依据的硬性禁令。每条附一句原文例证。只输出要点，不做情节或主题分析。",
+          ? "Read this passage from the reference work and list only observable craft facts. Cover narrative distance, sentence and paragraph rhythm, sentence length and clauses per sentence, how time advances, dialogue ratio and function (information exchange versus competing interests), narrator asides, metaphor type, where causes land (concrete money, objects, obligations versus abstract concepts), whether characters carry concrete calculations and numbers, whether procedural motion is compressed away, and how an ending leaves pressure. Cite one short verbatim example per point. Output bullets, no analysis of plot or theme."
+          : "只读这一段参考正文，列出可观察的写作手法：叙述距离、句子与段落节奏、句子长度与分句数量、时间如何推进、对白比例与功能（是交换信息还是争夺利益）、说书人插话的方式、比喻类型、因果如何落地（落在钱物利害还是抽象概念）、人物是否带具体算计与数目、流程性动作是否被省略、结尾如何留压。每条附一句原文例证。只输出要点，不做情节或主题分析。",
       },
       {
         role: "user",
@@ -76,8 +76,8 @@ export async function compileStyleGuide(input: {
     {
       role: "system",
       content: language === "en"
-        ? "Merge these per-passage observations into one operational prose-style guide in Markdown. Resolve repetition and contradiction by what holds across passages. Keep it prescriptive and testable: what the narration does, what it must do, and what it must not do. Preserve short verbatim examples. Do not describe plot, characters, or themes as style requirements. Return Markdown only."
-        : "把下列分块观察合并为一份可执行的中文文风指南（Markdown）。以多数样段一致的表现消解重复与矛盾。写成可检验的规范：叙述如何做、必须做到什么、禁止什么。保留简短原文例证。不要把情节、人物或主题写成文风要求。只返回 Markdown。",
+        ? "Merge these per-passage observations into one operational writing guide in Markdown. Resolve repetition and contradiction by what holds across passages. It must have two parts: language (sentence length, clauses per sentence, sentences per paragraph, punctuation and connective density, dialogue-block length) and craft (where causes land, whether characters carry calculations and numbers, how information is released or withheld, whether procedural motion is compressed, how endings leave pressure, whether dialogue competes over interests). Keep it prescriptive and testable. Preserve short verbatim examples. Do not describe plot, characters, or themes as requirements. Return Markdown only."
+        : "把下列分块观察合并为一份可执行的中文写作指南（Markdown）。以多数样段一致的表现消解重复与矛盾。必须包含两部分：一是语言层（句子长度、每句分句数、段落句数、标点与虚词密度、对白段长度），二是手法层（因果落在什么上、人物是否带算计与数目、信息如何释放与留白、流程动作是否省略、结尾如何留压、对话是否争夺利益）。写成可检验的规范：必须做到什么、禁止什么。保留简短原文例证。不要把情节、人物或主题写成写作要求。只返回 Markdown。",
     },
     {
       role: "user",

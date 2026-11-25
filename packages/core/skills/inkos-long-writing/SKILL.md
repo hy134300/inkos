@@ -21,5 +21,17 @@ Apply this method inside the active architect, writer, auditor, or reviser opera
 - When reviewing a new foundation, test whether the central conflict can sustain the requested span, the opening creates forward pressure, the world is specific and coherent, major characters differ in motive and voice, and the outline can progress without repeating one beat. For fan fiction or series work, preserve source facts while establishing a real divergence or new narrative space.
 - When creating a foundation, connect a visible foreground line to a deeper causal line, give every volume an observable end-state and irreversible change, make character arcs pay a cost, and distinguish dormant seeds from already active promises.
 
+## Situation over event log
+
+A chapter is not a record of what happened. It is a person's situation becoming unbearable or changeable.
+
+- Give the viewpoint character a concrete calculation: what they want, what it costs, what they can still afford. Numbers, possessions, obligations and relationships carry the pressure; abstract nouns do not.
+- Ground every cause in something specific: a price, a meal, a relative, a rule that decides who gets paid. Never let "custom", "status" or "duty" explain a choice on its own; show what it costs someone.
+- Do not explain an action after giving it. The action is the information. Adding "he wanted to..." or "the reason was..." turns a scene into a report.
+- Cut procedural motion. Opening a box, lighting a lamp, locking a door, walking to a desk are only worth a clause when they change the situation or reveal a cost. Compress the rest into one clause or drop it.
+- Dialogue carries interests, not answers. Two speakers want different things from the same exchange, and each line should move who holds the advantage.
+- End on pressure the reader can anticipate, not on the narrator's conclusion. Let the last concrete action imply what comes next; do not explain what it means.
+- Prefer what a reader can picture over what a reader must be told. If a sentence can be replaced by a scene, replace it.
+
 Load `references/foundation-design.md` while creating or rebuilding a book foundation. Load `references/reader-contract-and-progression.md` while planning, writing, reviewing, or revising chapters.
 Load `references/state-projection.md` while observing a completed chapter or settling runtime truth files.
