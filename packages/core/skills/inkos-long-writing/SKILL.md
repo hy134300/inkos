@@ -33,5 +33,21 @@ A chapter is not a record of what happened. It is a person's situation becoming 
 - End on pressure the reader can anticipate, not on the narrator's conclusion. Let the last concrete action imply what comes next; do not explain what it means.
 - Prefer what a reader can picture over what a reader must be told. If a sentence can be replaced by a scene, replace it.
 
+## Detail economics
+
+Every concrete detail must pay rent. Before keeping one, answer: is it a cost, a gain, or another person's reaction? If it is none of the three, delete it.
+
+- A number only earns its place if someone's attitude changes because of it. Give the price, then show the decision it forces. Never list figures for texture.
+- Never enumerate with a colon and commas ("assistant position one, mana root one, lifespan remaining several"). That reads as an inventory. Spread the cost across the action: hesitate before pressing, lose something when pressing, notice the loss afterwards.
+- Never explain a rule the reader just watched happen. Let the consequence appear later and let the reader infer the rule.
+- Do not let an abstract noun carry a cause on its own ("the status existed but was never realized"). Replace it with an artifact: a line in a register, a title missing from a stone, a room where nobody else ever stayed.
+- Proof of a relationship is something already done for the other person, not a claim about how close they are.
+- One paragraph carries one new piece of information. Adjacent paragraphs must not re-explain the same fact.
+- Motivation chains stay under three steps and end in an observable action.
+- Emotion appears only as action, physical reaction, or where the gaze lands.
+- One narrator aside per paragraph, at most.
+- Merge three or more small consecutive actions into a single comma-chained sentence. Do not shoot them as separate paragraphs.
+- One "he never imagined" turn per chapter, at the end.
+
 Load `references/foundation-design.md` while creating or rebuilding a book foundation. Load `references/reader-contract-and-progression.md` while planning, writing, reviewing, or revising chapters.
 Load `references/state-projection.md` while observing a completed chapter or settling runtime truth files.
