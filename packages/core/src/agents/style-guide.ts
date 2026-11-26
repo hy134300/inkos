@@ -6,6 +6,41 @@ import { semanticInputBudget } from "../llm/semantic-input.js";
 import type { ActivatedSkillGuidance } from "../agent/skill-tool.js";
 import { loadAvailableAgentSkills, mergeActivatedSkillGuidance } from "../skills/index.js";
 
+
+/**
+ * Host-side corpus statistics. The model should not guess numbers the host can
+ * measure, so these are computed from the reference text and handed to the merge
+ * step as ground truth.
+ */
+export function computeReferenceStats(text: string): {
+  readonly chars: number;
+  readonly sentences: number;
+  readonly avgSentenceChars: number;
+  readonly clausesPerSentence: number;
+  readonly avgClauseChars: number;
+  readonly perThousand: Record<string, number>;
+  readonly dialogueParagraphRatio: number;
+} {
+  const chars = text.length;
+  const sentences = text.split(/(?<=[。！？…])/).filter((part) => part.trim().length > 0);
+  const clauses = text.split(/[，。；：！？…—]/).filter((part) => part.trim().length > 0);
+  const perThousand: Record<string, number> = {};
+  for (const [name, mark] of [["逗号", "，"], ["句号", "。"], ["分号", "；"], ["冒号", "："], ["破折号", "——"], ["问号", "？"], ["感叹号", "！"], ["省略号", "…"]] as const) {
+    perThousand[name] = Math.round(((text.split(mark).length - 1) / chars) * 1000 * 100) / 100;
+  }
+  const paragraphs = text.split(/\n\s*\n/).filter((part) => part.trim().length > 0);
+  const dialogue = paragraphs.filter((part) => /^\s*[“「"]/.test(part));
+  return {
+    chars,
+    sentences: sentences.length,
+    avgSentenceChars: Math.round((chars / Math.max(1, sentences.length)) * 10) / 10,
+    clausesPerSentence: Math.round((clauses.length / Math.max(1, sentences.length)) * 100) / 100,
+    avgClauseChars: Math.round((chars / Math.max(1, clauses.length)) * 10) / 10,
+    perThousand,
+    dialogueParagraphRatio: Math.round((dialogue.length / Math.max(1, paragraphs.length)) * 1000) / 10,
+  };
+}
+
 /** How many evenly spaced passages to sample from a long reference. */
 const LONG_REFERENCE_SAMPLES = 12;
 
@@ -48,8 +83,8 @@ export async function compileStyleGuide(input: {
       {
         role: "system",
         content: language === "en"
-          ? "Read this passage from the reference work and list only observable craft facts. Cover narrative distance, sentence and paragraph rhythm, sentence length and clauses per sentence, how time advances, dialogue ratio and function (information exchange versus competing interests), narrator asides, metaphor type, where causes land (concrete money, objects, obligations versus abstract concepts), whether characters carry concrete calculations and numbers, whether procedural motion is compressed away, and how an ending leaves pressure. Also judge whether one event carries the chapter and whether every other detail serves it, plus four things: whether concrete details each carry a cost, a gain, or another person’s reaction; whether every number changes someone's attitude; whether lists are enumerated after a colon; and whether rules are shown only through consequences instead of being explained. Cite one short verbatim example per point. Output bullets, no analysis of plot or theme."
-          : "只读这一段参考正文，列出可观察的写作手法：叙述距离、句子与段落节奏、句子长度与分句数量、时间如何推进、对白比例与功能（是交换信息还是争夺利益）、说书人插话的方式、比喻类型、因果如何落地（落在钱物利害还是抽象概念）、人物是否带具体算计与数目、流程性动作是否被省略、结尾如何留压。还要判断：这一章是否只有一个事件在推进，其余细节是否都在为它服务；以及四件事：具体细节是否都承担代价、收益或他人反应；数字是否都引出了人物态度的变化；是否用冒号加顿号列举清单；规则是否只靠后果呈现而不解释。每条附一句原文例证。只输出要点，不做情节或主题分析。",
+          ? "Read this passage from the reference work and list only observable craft facts. Cover narrative distance, sentence and paragraph rhythm, sentence length and clauses per sentence, how time advances, dialogue ratio and function (information exchange versus competing interests), narrator asides, metaphor type, where causes land (concrete money, objects, obligations versus abstract concepts), whether characters carry concrete calculations and numbers, whether procedural motion is compressed away, and how an ending leaves pressure. Also judge whether one event carries the chapter and whether every other detail serves it, plus four things: whether concrete details each carry a cost, a gain, or another person’s reaction; whether every number changes someone's attitude; whether lists are enumerated after a colon; and whether rules are shown only through consequences instead of being explained. Also estimate one ratio: the percentage of sentences whose subject is a body part, internal energy, or a sense organ. Cite one short verbatim example per point. Output bullets, no analysis of plot or theme."
+          : "只读这一段参考正文，列出可观察的写作手法：叙述距离、句子与段落节奏、句子长度与分句数量、时间如何推进、对白比例与功能（是交换信息还是争夺利益）、说书人插话的方式、比喻类型、因果如何落地（落在钱物利害还是抽象概念）、人物是否带具体算计与数目、流程性动作是否被省略、结尾如何留压。还要判断：这一章是否只有一个事件在推进，其余细节是否都在为它服务；以及四件事：具体细节是否都承担代价、收益或他人反应；数字是否都引出了人物态度的变化；是否用冒号加顿号列举清单；规则是否只靠后果呈现而不解释。还要估一个比例：以身体部位、体内能量或感官器官作主语的句子占总句数的百分比。每条附一句原文例证。只输出要点，不做情节或主题分析。",
       },
       {
         role: "user",
@@ -72,18 +107,19 @@ export async function compileStyleGuide(input: {
   }
   if (!notes.length) throw new Error("Style extraction returned no usable observations.");
 
+  const stats = computeReferenceStats(sample);
   const merged = await runWorkerAgent(input.client, input.model, await prepareWorkerMessages({ ...input, activatedSkills: actives }, [
     {
       role: "system",
       content: language === "en"
-        ? "Merge these per-passage observations into one operational writing guide in Markdown. Resolve repetition and contradiction by what holds across passages. It must have two parts: language (sentence length, clauses per sentence, sentences per paragraph, punctuation and connective density, dialogue-block length) and craft (where causes land, whether characters carry calculations and numbers, how information is released or withheld, whether procedural motion is compressed, how endings leave pressure, whether dialogue competes over interests). Add a 'single focus' section on how one event carries the chapter and how everything else is compressed into transition, plus a 'detail economics' section derived from the passages: whether details carry a cost, a gain, or another person’s reaction; whether numbers drive decisions; whether colons enumerate lists; whether rules are shown only through consequences; whether adjacent paragraphs repeat one fact. Keep it prescriptive and testable. Preserve short verbatim examples. Do not describe plot, characters, or themes as requirements. Return Markdown only."
-        : "把下列分块观察合并为一份可执行的中文写作指南（Markdown）。以多数样段一致的表现消解重复与矛盾。必须包含两部分：一是语言层（句子长度、每句分句数、段落句数、标点与虚词密度、对白段长度），二是手法层（因果落在什么上、人物是否带算计与数目、信息如何释放与留白、流程动作是否省略、结尾如何留压、对话是否争夺利益）。写成可检验的规范：必须做到什么、禁止什么。另加一节「单一重点」，说明本章如何只推进一个事件、其余细节如何压成过渡；并加一节「细节经济学」，按多数样段归纳：细节是否都承担代价、收益或他人反应；数字是否都驱动了人物决定；是否避免冒号加顿号列举；规则是否只靠后果呈现；相邻段是否重复解释同一件事。保留简短原文例证。不要把情节、人物或主题写成写作要求。只返回 Markdown。",
+        ? "Merge these per-passage observations into one operational writing guide in Markdown. Resolve repetition and contradiction by what holds across passages. It must have two parts: language (sentence length, clauses per sentence, sentences per paragraph, punctuation and connective density, dialogue-block length) and craft (where causes land, whether characters carry calculations and numbers, how information is released or withheld, whether procedural motion is compressed, how endings leave pressure, whether dialogue competes over interests). Add a 'single focus' section on how one event carries the chapter and how everything else is compressed into transition, plus a 'sensory and internal-state' section with an upper bound, plus a 'detail economics' section derived from the passages: whether details carry a cost, a gain, or another person’s reaction; whether numbers drive decisions; whether colons enumerate lists; whether rules are shown only through consequences; whether adjacent paragraphs repeat one fact. Keep it prescriptive and testable. Preserve short verbatim examples. Do not describe plot, characters, or themes as requirements. Return Markdown only."
+        : "把下列分块观察合并为一份可执行的中文写作指南（Markdown）。以多数样段一致的表现消解重复与矛盾。必须包含两部分：一是语言层（句子长度、每句分句数、段落句数、标点与虚词密度、对白段长度），二是手法层（因果落在什么上、人物是否带算计与数目、信息如何释放与留白、流程动作是否省略、结尾如何留压、对话是否争夺利益）。写成可检验的规范：必须做到什么、禁止什么。另加一节「单一重点」，说明本章如何只推进一个事件、其余细节如何压成过渡；并加一节「感官与体内描写」，给出上限比例；再加一节「细节经济学」，按多数样段归纳：细节是否都承担代价、收益或他人反应；数字是否都驱动了人物决定；是否避免冒号加顿号列举；规则是否只靠后果呈现；相邻段是否重复解释同一件事。保留简短原文例证。不要把情节、人物或主题写成写作要求。只返回 Markdown。",
     },
     {
       role: "user",
       content: language === "en"
-        ? `Source: ${input.sourceName?.trim() || "reference"}\n\n${notes.join("\n\n")}`
-        : `来源：${input.sourceName?.trim() || "参考文本"}\n\n${notes.join("\n\n")}`,
+        ? `Source: ${input.sourceName?.trim() || "reference"}\n\nHost-measured corpus statistics follow. Numbers in the guide must use these, never guesses:\n${JSON.stringify(stats)}\n\n${notes.join("\n\n")}`
+        : `来源：${input.sourceName?.trim() || "参考文本"}\n\n以下是宿主直接统计的语料数据，指南里的数字必须以此为准，不要自行估算：\n${JSON.stringify(stats)}\n\n${notes.join("\n\n")}`,
     },
   ], undefined, "style-guide-merge"), {
     temperature: 0.2,
