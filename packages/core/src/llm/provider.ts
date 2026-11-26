@@ -38,12 +38,15 @@ export interface StreamProgress {
 export type OnStreamProgress = (progress: StreamProgress) => void;
 
 const INKOS_USER_AGENT = "InkOS/2.0.0";
-const UNKNOWN_MODEL_FALLBACK_MAX_TOKENS = 8192 * 3;
+// Catalog-unknown models (local OpenAI-compatible endpoints) need enough output
+// budget for hidden reasoning plus the actual result. Keep it context-aware so
+// small-window models are not over-committed.
+const UNKNOWN_MODEL_FALLBACK_MAX_TOKENS = 8192 * 5;
 const TRANSIENT_LLM_RETRIES = 2;
 const DEFAULT_FIRST_STREAM_EVENT_TIMEOUT_MS = 120_000;
 const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 90_000;
-const DEFAULT_PIPELINE_FIRST_STREAM_EVENT_TIMEOUT_MS = 300_000;
-const DEFAULT_PIPELINE_STREAM_IDLE_TIMEOUT_MS = 180_000;
+const DEFAULT_PIPELINE_FIRST_STREAM_EVENT_TIMEOUT_MS = 600_000;
+const DEFAULT_PIPELINE_STREAM_IDLE_TIMEOUT_MS = 300_000;
 
 export interface StreamDeadlineOptions {
   readonly firstEventTimeoutMs?: number;
@@ -336,9 +339,13 @@ export interface LLMClient {
 
 export function createLLMClient(config: LLMConfig): LLMClient {
   const _earlyCard = lookupModel(config.service ?? "custom", config.model);
+  const fallbackMaxTokens = Math.min(
+    UNKNOWN_MODEL_FALLBACK_MAX_TOKENS,
+    Math.max(8_192, Math.floor((_earlyCard?.contextWindowTokens ?? 128_000) * 0.4)),
+  );
   const defaults = {
     temperature: config.temperature ?? 0.7,
-    maxTokens: _earlyCard?.maxOutput ?? UNKNOWN_MODEL_FALLBACK_MAX_TOKENS,
+    maxTokens: _earlyCard?.maxOutput ?? fallbackMaxTokens,
     thinkingBudget: config.thinkingBudget ?? 0,
     extra: config.extra ?? {},
   };
@@ -385,7 +392,7 @@ export function createLLMClient(config: LLMConfig): LLMClient {
     input: ["text"] as ("text" | "image")[],
     cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
     contextWindow: modelCard?.contextWindowTokens ?? 128_000,
-    maxTokens: modelCard?.maxOutput ?? UNKNOWN_MODEL_FALLBACK_MAX_TOKENS,
+    maxTokens: modelCard?.maxOutput ?? fallbackMaxTokens,
     ...(extraHeaders ? { headers: extraHeaders } : {}),
     ...(compat ? { compat } : {}),
   };

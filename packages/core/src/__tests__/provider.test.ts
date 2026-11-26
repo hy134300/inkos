@@ -1102,7 +1102,7 @@ describe("createLLMClient with providers lookup", () => {
     expect(client.defaults.maxTokens).toBe(4096);
   });
 
-  it("未知 model 走 8192 * 3 的写作兜底预算", async () => {
+  it("未知 model 走上下文感知的写作兜底预算", async () => {
     const { createLLMClient } = await import("../llm/provider.js");
     const { LLMConfigSchema } = await import("../models/project.js");
     const client = createLLMClient(LLMConfigSchema.parse({
@@ -1112,8 +1112,10 @@ describe("createLLMClient with providers lookup", () => {
       apiKey: "test",
       baseUrl: "https://middleman.example/v1",
     }));
-    expect(client.defaults.maxTokens).toBe(24_576);
-    expect(client._piModel?.maxTokens).toBe(24_576);
+    // Reasoning-capable local endpoints need room for hidden thinking plus prose.
+    // The budget stays context-aware so a small-window model is not over-committed.
+    expect(client.defaults.maxTokens).toBe(40_960);
+    expect(client._piModel?.maxTokens).toBe(40_960);
   });
 
   it("B7: kimiCodingPlan 的 kimi-k2.5 走 API 时 piModel.id 是 deploymentName (k2p5)", async () => {
