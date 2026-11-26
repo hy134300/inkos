@@ -5,60 +5,22 @@ description: 长篇小说的场景构造、人物因果、信息释放与连载�
 # Long-form narrative craft
 
 Apply this method inside the active architect, writer, auditor, or reviser operation.
+Prose discipline detail: load `references/prose-discipline.md` when writing or revising prose.
 
-- Turn the chapter goal into scenes with an immediate objective, resistance, a meaningful turn, and consequences that survive the scene.
-- Let character choices follow what each person wants, knows, fears, and can afford. Relationships change through events, not author explanation.
-- Reveal setting and backstory through action, evidence, dialogue, and sensory particulars. Do not replace a scene with a synopsis or analysis.
-- Every passage must alter conflict, evidence, emotion, relationship, knowledge, position, or future consequence. Remove padding rather than stretching to a number.
-- Control information deliberately: answer some active reader questions, deepen others through concrete evidence, and do not manufacture twists by hiding facts the viewpoint should know.
-- Preserve the user's voice, viewpoint, prohibitions, proportions, and current direction. Genre convention is only a default when the governed context is silent.
-- End a chapter after a material change or fresh pressure, not with a mechanical cliffhanger formula. Show the after-effect of major payoffs before starting another escalation cycle.
-- Use references as evidence for craft or facts only. Do not reproduce source wording, names, scene order, or signature combinations.
-- During review or revision, diagnose and repair the smallest layer that actually causes the problem. A formatting failure is not evidence that the prose is bad.
-- When the author changes a premise, distinguish retained source facts from superseded generated plans. Apply the latest explicit change consistently to the foundation, chapter plan and prose; an old memo or hook cannot require restoring a deleted premise. Report remaining contradictions between those documents instead of treating the obsolete plan as a new instruction.
-- During prose polishing, change only wording, sentence shape, paragraphing, sensory precision, punctuation, and dialogue naturalness. Preserve events, viewpoint, character decisions, information, and consequences. Keep the result close in length and voice to the accepted chapter.
-- Prefer concrete verbs, observable reactions, distinct voices, and readable paragraph rhythm over narrator conclusions, repeated hedges, decorative description, or synchronized crowd reactions.
-- When reviewing a new foundation, test whether the central conflict can sustain the requested span, the opening creates forward pressure, the world is specific and coherent, major characters differ in motive and voice, and the outline can progress without repeating one beat. For fan fiction or series work, preserve source facts while establishing a real divergence or new narrative space.
-- When creating a foundation, connect a visible foreground line to a deeper causal line, give every volume an observable end-state and irreversible change, make character arcs pay a cost, and distinguish dormant seeds from already active promises.
+1. **One focus per chapter.** Name it before writing: who wants what, what blocks it, the one thing the reader must leave with. Half the chapter serves it; everything else is transition. If the chapter needs "and also" to summarise, it has no focus.
+2. **Scenes, not summaries.** Give the chapter an immediate objective, resistance, a turn, and consequences that survive the scene. Do not replace a scene with synopsis or analysis.
+3. **Actions carry their own reason.** Write the action; withhold the motive. At most one explanation per scene, placed after the action. Never explain a rule or mechanism you just showed — let the consequence land later.
+4. **Every detail pays rent.** A detail must be a cost, a gain, or another person's reaction. A number must change someone's decision. Otherwise delete it. No inventories after a colon.
+5. **Concrete stakes, not abstract nouns.** Pressure comes from money, goods, time, distance, rank, obligations — not from "status", "duty" or "fate".
+6. **Show setting, backstory and relationship through evidence.** Something already done for someone proves a relationship; a register line, a missing title or an empty room proves a position.
+7. **One new fact per paragraph.** Never re-explain the previous paragraph. A second mention must add a new cost or reaction.
+8. **Emotion is external.** Action, physical reaction, where the gaze lands. One narrator aside per paragraph.
+9. **Dialogue competes.** Each speaker wants something from the exchange, and each round moves who holds the advantage. Never pure Q&A.
+10. **End on pressure, not conclusion.** Stop on an unfinished action, new information or a concrete threat. No summary, no thesis, no lyric close. One "he never imagined" per chapter, at most.
+11. **Preserve the author's voice and boundaries.** Respect viewpoint, prohibitions, proportions and the latest explicit change. Use references as evidence for craft or facts, never reproduce their wording, names or scene order.
+12. **Repair the smallest layer that explains the defect.** A formatting or parse failure is not evidence that the prose is bad, and never authorises a rewrite.
 
-## Situation over event log
-
-A chapter is not a record of what happened. It is a person's situation becoming unbearable or changeable.
-
-- Give the viewpoint character a concrete calculation: what they want, what it costs, what they can still afford. Numbers, possessions, obligations and relationships carry the pressure; abstract nouns do not.
-- Ground every cause in something specific: a price, a meal, a relative, a rule that decides who gets paid. Never let "custom", "status" or "duty" explain a choice on its own; show what it costs someone.
-- Do not explain an action after giving it. The action is the information. Adding "he wanted to..." or "the reason was..." turns a scene into a report.
-- Cut procedural motion. Opening a box, lighting a lamp, locking a door, walking to a desk are only worth a clause when they change the situation or reveal a cost. Compress the rest into one clause or drop it.
-- Dialogue carries interests, not answers. Two speakers want different things from the same exchange, and each line should move who holds the advantage.
-- End on pressure the reader can anticipate, not on the narrator's conclusion. Let the last concrete action imply what comes next; do not explain what it means.
-- Prefer what a reader can picture over what a reader must be told. If a sentence can be replaced by a scene, replace it.
-
-## Single focus
-
-A chapter carries one thing. Name it before writing: who wants what, what blocks it, and the one fact the reader must leave with.
-
-- Devote at least half the chapter to that one line. Everything else becomes transition, compressed to a clause or a paragraph.
-- Never give three events equal weight. If the memo lists three beats, choose the one that carries the chapter's stake and reduce the other two to approach and aftermath.
-- Test every paragraph: if deleting it does not change what the reader understands about that one line, delete it.
-- Texture is not focus. Bottles, registers, headstones and incense only matter when they change what someone can do next.
-- State the same fact once. A second mention must add a new cost or a new reaction, or it is repetition.
-- If a chapter cannot be summarised in one sentence without "and also", it has no focus yet.
-
-## Detail economics
-
-Every concrete detail must pay rent. Before keeping one, answer: is it a cost, a gain, or another person's reaction? If it is none of the three, delete it.
-
-- A number only earns its place if someone's attitude changes because of it. Give the price, then show the decision it forces. Never list figures for texture.
-- Never enumerate with a colon and commas ("assistant position one, mana root one, lifespan remaining several"). That reads as an inventory. Spread the cost across the action: hesitate before pressing, lose something when pressing, notice the loss afterwards.
-- Never explain a rule the reader just watched happen. Let the consequence appear later and let the reader infer the rule.
-- Do not let an abstract noun carry a cause on its own ("the status existed but was never realized"). Replace it with an artifact: a line in a register, a title missing from a stone, a room where nobody else ever stayed.
-- Proof of a relationship is something already done for the other person, not a claim about how close they are.
-- One paragraph carries one new piece of information. Adjacent paragraphs must not re-explain the same fact.
-- Motivation chains stay under three steps and end in an observable action.
-- Emotion appears only as action, physical reaction, or where the gaze lands.
-- One narrator aside per paragraph, at most.
-- Merge three or more small consecutive actions into a single comma-chained sentence. Do not shoot them as separate paragraphs.
-- One "he never imagined" turn per chapter, at the end.
-
-Load `references/foundation-design.md` while creating or rebuilding a book foundation. Load `references/reader-contract-and-progression.md` while planning, writing, reviewing, or revising chapters.
+Load `references/prose-discipline.md` while writing or revising prose.
+Load `references/foundation-design.md` while creating or rebuilding a book foundation.
+Load `references/reader-contract-and-progression.md` while planning, writing, reviewing or revising chapters.
 Load `references/state-projection.md` while observing a completed chapter or settling runtime truth files.
