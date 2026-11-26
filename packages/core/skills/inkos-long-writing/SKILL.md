@@ -33,6 +33,17 @@ A chapter is not a record of what happened. It is a person's situation becoming 
 - End on pressure the reader can anticipate, not on the narrator's conclusion. Let the last concrete action imply what comes next; do not explain what it means.
 - Prefer what a reader can picture over what a reader must be told. If a sentence can be replaced by a scene, replace it.
 
+## Single focus
+
+A chapter carries one thing. Name it before writing: who wants what, what blocks it, and the one fact the reader must leave with.
+
+- Devote at least half the chapter to that one line. Everything else becomes transition, compressed to a clause or a paragraph.
+- Never give three events equal weight. If the memo lists three beats, choose the one that carries the chapter's stake and reduce the other two to approach and aftermath.
+- Test every paragraph: if deleting it does not change what the reader understands about that one line, delete it.
+- Texture is not focus. Bottles, registers, headstones and incense only matter when they change what someone can do next.
+- State the same fact once. A second mention must add a new cost or a new reaction, or it is repetition.
+- If a chapter cannot be summarised in one sentence without "and also", it has no focus yet.
+
 ## Detail economics
 
 Every concrete detail must pay rent. Before keeping one, answer: is it a cost, a gain, or another person's reaction? If it is none of the three, delete it.
